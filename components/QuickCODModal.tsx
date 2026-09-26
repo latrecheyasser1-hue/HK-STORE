@@ -314,7 +314,7 @@ export default function QuickCODModal({
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-heading text-[11px] font-bold text-[#0A0A0C]">
-                          Point Relais
+                          Stopdesk
                         </span>
                         <span className="font-mono text-xs font-bold text-[#0A0A0C]">
                           +{currentWilaya.stopdeskPrice} DZD
