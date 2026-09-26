@@ -893,7 +893,7 @@ export default function AdminPage() {
           <div className="w-3.5 h-3.5 rounded-full bg-[#10B981] animate-ping shrink-0" />
           <div className="flex-1">
             <span className="font-heading font-extrabold text-[11px] text-[#10B981] uppercase tracking-wider block">
-              🔔 NOUVELLE COMMANDE REÇUE (EN DIRECT)
+              🔔 NOUVELLE COMMANDE REÇUE
             </span>
             <p className="text-xs font-mono text-[#FFFFFF] mt-0.5">{realtimeNotification}</p>
           </div>
@@ -927,7 +927,6 @@ export default function AdminPage() {
               <div className="flex items-center gap-2.5">
                 <Package className={`w-4 h-4 ${activeTab === "orders" ? "text-[#C5A880]" : "text-[#71717A]"}`} />
                 <span>Commandes</span>
-                <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" title="Supabase Realtime Live" />
               </div>
               <span className="px-1.5 py-0.5 bg-[#C5A880] text-[#0A0A0C] font-mono font-bold text-[10px]">
                 {orders.length}
@@ -1070,10 +1069,6 @@ export default function AdminPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981] text-xs font-mono font-bold tracking-wider">
-                    <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse"></span>
-                    SUPABASE REALTIME ACTIF
-                  </span>
                   <button
                     onClick={fetchRealOrders}
                     disabled={isLoadingOrders}
@@ -1147,9 +1142,6 @@ export default function AdminPage() {
                           <div className="flex flex-col items-center justify-center gap-1.5">
                             <span className="font-heading font-extrabold text-xs text-[#A1A1AA] uppercase tracking-wider">
                               AUCUNE COMMANDE POUR LE MOMENT
-                            </span>
-                            <span className="text-[11px] text-[#10B981] font-mono">
-                              ● En attente de commandes clients en direct (Realtime Actif)
                             </span>
                           </div>
                         </td>
