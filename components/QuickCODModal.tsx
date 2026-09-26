@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { X, CheckCircle, Truck, ShieldCheck, MapPin, Phone, User, Package } from "lucide-react";
 import { Product, WILAYAS_DZ } from "@/data/storeData";
+import { getCommunesForWilaya } from "@/data/algerianCommunes";
 
 interface QuickCODModalProps {
   isOpen: boolean;
@@ -28,6 +29,21 @@ export default function QuickCODModal({
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
+
+  const availableCommunes = useMemo(() => {
+    return getCommunesForWilaya(selectedWilayaCode);
+  }, [selectedWilayaCode]);
+
+  useEffect(() => {
+    if (availableCommunes.length > 0) {
+      setCommune((prev) => {
+        const found = availableCommunes.some((c) => c.nameFr === prev);
+        return found ? prev : availableCommunes[0].nameFr;
+      });
+    } else {
+      setCommune("");
+    }
+  }, [selectedWilayaCode, availableCommunes]);
 
   useEffect(() => {
     if (product && product.variants && product.variants.length > 0) {
@@ -259,19 +275,20 @@ export default function QuickCODModal({
 
                   <div>
                     <label className="block font-heading text-[10px] font-bold uppercase tracking-wider text-[#111827] mb-1">
-                      Commune / البلدية <span className="text-[#DC2626]">*</span>
+                      Commune / البلدية ({availableCommunes.length}) <span className="text-[#DC2626]">*</span>
                     </label>
-                    <div className="relative">
-                      <MapPin className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-3.5 stroke-[1.5]" />
-                      <input
-                        type="text"
-                        required
-                        value={commune}
-                        onChange={(e) => setCommune(e.target.value)}
-                        placeholder="Ex: Chlef Centre"
-                        className="w-full h-11 pl-9 pr-3 border border-[#E5E7EB] focus:border-[#0A0A0C] text-xs text-[#111827] focus:outline-none transition-colors"
-                      />
-                    </div>
+                    <select
+                      value={commune}
+                      onChange={(e) => setCommune(e.target.value)}
+                      required
+                      className="w-full h-11 px-3 border border-[#E5E7EB] focus:border-[#0A0A0C] text-xs text-[#111827] bg-[#FFFFFF] focus:outline-none transition-colors cursor-pointer"
+                    >
+                      {availableCommunes.map((c) => (
+                        <option key={c.nameFr} value={c.nameFr}>
+                          {c.nameFr} - {c.nameAr}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
