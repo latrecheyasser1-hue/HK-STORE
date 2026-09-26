@@ -169,9 +169,9 @@ export default function CartDrawer({
                 onClose();
                 onCheckout();
               }}
-              className="w-full h-12 bg-[#0A0A0C] hover:bg-[#C5A880] text-[#FFFFFF] hover:text-[#0A0A0C] font-heading font-bold text-xs uppercase tracking-[0.14em] flex items-center justify-center gap-2 transition-all shadow-md"
+              className="group w-full h-14 px-6 rounded-lg bg-[#0A0A0C] hover:bg-[#18191E] border border-[#27272A] hover:border-[#C5A880] text-[#FFFFFF] font-heading font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all duration-200 shadow-xl hover:shadow-[#C5A880]/15 active:scale-[0.99] cursor-pointer"
             >
-              <ShieldCheck className="w-4 h-4 stroke-[1.5]" />
+              <ShieldCheck className="w-5 h-5 text-[#C5A880] transition-transform duration-200 group-hover:scale-110" />
               <span>FINALISER LA COMMANDE</span>
             </button>
           </div>

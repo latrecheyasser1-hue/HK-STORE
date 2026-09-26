@@ -368,14 +368,20 @@ export default function QuickCODModal({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full h-13 bg-[#0A0A0C] hover:bg-[#C5A880] text-[#FFFFFF] hover:text-[#0A0A0C] font-heading font-bold text-xs uppercase tracking-[0.14em] flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50"
+                className="group relative w-full h-14 px-6 rounded-lg bg-[#0A0A0C] hover:bg-[#18191E] border border-[#27272A] hover:border-[#C5A880] text-[#FFFFFF] font-heading font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all duration-200 shadow-xl hover:shadow-[#C5A880]/15 active:scale-[0.99] disabled:opacity-50 cursor-pointer overflow-hidden"
               >
                 {isSubmitting ? (
-                  <span>ENREGISTREMENT DU COLIS...</span>
+                  <span className="flex items-center gap-2.5">
+                    <span className="w-4 h-4 border-2 border-[#C5A880] border-t-transparent rounded-full animate-spin" />
+                    <span>ENREGISTREMENT DU COLIS...</span>
+                  </span>
                 ) : (
                   <>
-                    <ShieldCheck className="w-4 h-4 stroke-[1.5]" />
-                    <span>CONFIRMER MA COMMANDE • {grandTotal.toLocaleString()} DZD</span>
+                    <ShieldCheck className="w-5 h-5 text-[#C5A880] transition-transform duration-200 group-hover:scale-110" />
+                    <span>CONFIRMER MA COMMANDE</span>
+                    <span className="text-[#C5A880] font-mono font-bold text-sm">
+                      • {grandTotal.toLocaleString()} DZD
+                    </span>
                   </>
                 )}
               </button>
