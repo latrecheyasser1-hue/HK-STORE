@@ -34,6 +34,8 @@ export async function GET() {
         clientName: o.customer_name,
         phone: o.customer_phone,
         items: itemsSummary || "Article HK Store",
+        productPriceDzd: Number(o.subtotal ?? (o.order_items?.[0]?.unit_price || o.total_amount)),
+        shippingCostDzd: Number(o.shipping_cost || 0),
         totalDzd: Number(o.total_amount),
         wilayaCode: o.wilaya_code,
         wilayaName: o.wilaya_name,

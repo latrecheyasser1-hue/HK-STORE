@@ -187,6 +187,8 @@ export async function POST(req: NextRequest) {
           clientName: newOrder.customer_name,
           phone: newOrder.customer_phone,
           items: sanitizedItems.map((it) => `${it.product_title} x${it.quantity}`).join(", "),
+          productPriceDzd: subtotal,
+          shippingCostDzd: shippingCost,
           totalDzd: totalAmount,
           wilayaCode: numWilaya,
           wilayaName: newOrder.wilaya_name,

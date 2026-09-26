@@ -63,6 +63,8 @@ interface AdminOrder {
   phone: string;
   items: string;
   totalDzd: number;
+  productPriceDzd?: number;
+  shippingCostDzd?: number;
   wilayaCode: number;
   wilayaName: string;
   baladiya: string;
@@ -1128,7 +1130,7 @@ export default function AdminPage() {
                       <th className="py-3 px-4">Commande</th>
                       <th className="py-3 px-4">Client</th>
                       <th className="py-3 px-4">Numéro</th>
-                      <th className="py-3 px-4">Articles (Cha Fiiha)</th>
+                      <th className="py-3 px-4">Articles</th>
                       <th className="py-3 px-4">Wilaya</th>
                       <th className="py-3 px-4">Baladiya</th>
                       <th className="py-3 px-4">Naw3 Tawssiil</th>
@@ -1173,13 +1175,13 @@ export default function AdminPage() {
                             </a>
                           </td>
 
-                          {/* 4. Cha Fiiha */}
+                          {/* 4. Articles */}
                           <td className="py-3 px-4 min-w-[200px]">
                             <div className="font-sans font-medium text-[#E4E4E7]">
                               {ord.items}
                             </div>
                             <span className="font-mono font-bold text-[#C5A880] text-[11px] block mt-0.5">
-                              {ord.totalDzd.toLocaleString()} DZD (Paiement COD)
+                              {(ord.productPriceDzd || (ord.totalDzd > 600 ? ord.totalDzd - 500 : ord.totalDzd)).toLocaleString()} DZD
                             </span>
                           </td>
 
