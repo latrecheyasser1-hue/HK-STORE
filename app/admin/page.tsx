@@ -119,7 +119,7 @@ export default function AdminPage() {
 
   // Orders State (Live Realtime from Supabase)
   const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const [isLoadingOrders, setIsLoadingOrders] = useState<boolean>(true);
+  const [isLoadingOrders, setIsLoadingOrders] = useState<boolean>(false);
   const [realtimeNotification, setRealtimeNotification] = useState<string | null>(null);
 
   const [orderSearchQuery, setOrderSearchQuery] = useState("");
@@ -1141,22 +1141,16 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1F2128]">
-                    {isLoadingOrders ? (
+                    {filteredOrders.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-12 text-center text-[#71717A] font-heading uppercase">
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <RefreshCw className="w-5 h-5 text-[#C5A880] animate-spin" />
-                            <span>Chargement des commandes depuis Supabase...</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : filteredOrders.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="py-16 text-center text-[#71717A] font-heading uppercase">
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <span className="w-3 h-3 rounded-full bg-[#10B981] animate-ping mb-1" />
-                            <span className="text-sm text-[#FFFFFF] font-bold">AUCUNE COMMANDE POUR LE MOMENT</span>
-                            <span className="text-xs text-[#10B981] font-mono">En écoute en direct (Supabase Realtime Live) — Faites un test depuis le site !</span>
+                        <td colSpan={8} className="py-14 text-center text-[#71717A]">
+                          <div className="flex flex-col items-center justify-center gap-1.5">
+                            <span className="font-heading font-extrabold text-xs text-[#A1A1AA] uppercase tracking-wider">
+                              AUCUNE COMMANDE POUR LE MOMENT
+                            </span>
+                            <span className="text-[11px] text-[#10B981] font-mono">
+                              ● En attente de commandes clients en direct (Realtime Actif)
+                            </span>
                           </div>
                         </td>
                       </tr>
