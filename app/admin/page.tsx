@@ -35,9 +35,11 @@ import {
   Tag,
   Percent,
   History,
-  Pencil
+  Pencil,
+  Bell
 } from "lucide-react";
 import { FEATURED_PRODUCTS, Product, WILAYAS_DZ, DEPARTMENTS } from "@/data/storeData";
+import { supabase } from "@/lib/supabaseClient";
 
 // Security Passcode as requested by the user
 const ADMIN_PASSCODE = "765483";
@@ -115,99 +117,10 @@ export default function AdminPage() {
     "orders" | "stock" | "suppliers" | "analytics" | "pos" | "pos_history"
   >("orders");
 
-  // Orders State
-  const [orders, setOrders] = useState<AdminOrder[]>([
-    {
-      id: "ord-1",
-      orderNumber: "#HK-1085",
-      date: "Aujourd'hui 15:40",
-      clientName: "Karim Boukhalfa",
-      phone: "0554 12 34 56",
-      items: "Coffret Royal Black Chrono + Parfum x1",
-      totalDzd: 6300,
-      wilayaCode: 2,
-      wilayaName: "Chlef",
-      baladiya: "Chlef Centre (Zenket Zwawa)",
-      deliveryType: "À Domicile",
-      status: "nouveau",
-      trackingNumber: "YAL-948201DZ",
-    },
-    {
-      id: "ord-2",
-      orderNumber: "#HK-1084",
-      date: "Aujourd'hui 14:15",
-      clientName: "Amina Zerrouki",
-      phone: "0770 98 12 43",
-      items: "Montre Femme Élégance Nacre & Or Rose x1",
-      totalDzd: 5100,
-      wilayaCode: 16,
-      wilayaName: "Alger",
-      baladiya: "Kouba",
-      deliveryType: "Stopdesk Yalidine",
-      status: "confirme",
-      trackingNumber: "YAL-947910DZ",
-    },
-    {
-      id: "ord-3",
-      orderNumber: "#HK-1083",
-      date: "Aujourd'hui 13:20",
-      clientName: "Yacine Belkacem",
-      phone: "0661 45 67 89",
-      items: "Coffret Femme Montre Dorée + Gourmette & Bague x1",
-      totalDzd: 5550,
-      wilayaCode: 31,
-      wilayaName: "Oran",
-      baladiya: "Es Senia",
-      deliveryType: "À Domicile",
-      status: "expedie",
-      trackingNumber: "YAL-946302DZ",
-    },
-    {
-      id: "ord-4",
-      orderNumber: "#HK-1082",
-      date: "Hier 18:30",
-      clientName: "Sofiane Touati",
-      phone: "0550 33 22 11",
-      items: "Montre Homme Chronographe Phantom Noir Mat x1",
-      totalDzd: 4950,
-      wilayaCode: 25,
-      wilayaName: "Constantine",
-      baladiya: "Belle Vue",
-      deliveryType: "À Domicile",
-      status: "livre",
-      trackingNumber: "YAL-945119DZ",
-    },
-    {
-      id: "ord-5",
-      orderNumber: "#HK-1081",
-      date: "Hier 16:50",
-      clientName: "Meriem Dahmani",
-      phone: "0791 22 44 66",
-      items: "Extrait de Parfum Aurelia Paris 100ml x2",
-      totalDzd: 10250,
-      wilayaCode: 9,
-      wilayaName: "Blida",
-      baladiya: "Ouled Yaich",
-      deliveryType: "Stopdesk Yalidine",
-      status: "nouveau",
-      trackingNumber: "YAL-944002DZ",
-    },
-    {
-      id: "ord-6",
-      orderNumber: "#HK-1080",
-      date: "Hier 11:10",
-      clientName: "Bilal Khelifi",
-      phone: "0672 88 99 00",
-      items: "Sacoche Homme Cuir Noir Compacte VIP x1",
-      totalDzd: 4450,
-      wilayaCode: 19,
-      wilayaName: "Sétif",
-      baladiya: "El Eulma",
-      deliveryType: "À Domicile",
-      status: "livre",
-      trackingNumber: "YAL-943110DZ",
-    }
-  ]);
+  // Orders State (Live Realtime from Supabase)
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState<boolean>(true);
+  const [realtimeNotification, setRealtimeNotification] = useState<string | null>(null);
 
   const [orderSearchQuery, setOrderSearchQuery] = useState("");
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
@@ -361,7 +274,44 @@ export default function AdminPage() {
     ticketId: string;
   } | null>(null);
 
-  // Check Session & load Suppliers on mount
+  // Play notification chime using Web Audio API (Zero external MP3 dependency)
+  const playOrderChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12); // A5
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.45);
+    } catch (e) {
+      console.warn("Audio chime prevented:", e);
+    }
+  };
+
+  const fetchRealOrders = async () => {
+    try {
+      setIsLoadingOrders(true);
+      const res = await fetch("/api/admin/orders");
+      const data = await res.json();
+      if (data.success && Array.isArray(data.orders)) {
+        setOrders(data.orders);
+      }
+    } catch (err) {
+      console.error("Error loading real orders from Supabase:", err);
+    } finally {
+      setIsLoadingOrders(false);
+    }
+  };
+
+  // Check Session & load Suppliers and Orders with Realtime on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = sessionStorage.getItem("hk_admin_session");
@@ -369,7 +319,7 @@ export default function AdminPage() {
         setIsAuthenticated(true);
       }
 
-      // 1. Instant load from localStorage
+      // 1. Instant load suppliers from localStorage
       const cachedSuppliers = localStorage.getItem("hk_admin_suppliers");
       if (cachedSuppliers !== null) {
         try {
@@ -377,7 +327,7 @@ export default function AdminPage() {
         } catch (e) {}
       }
 
-      // 2. Sync with persistent server API
+      // 2. Sync suppliers with persistent server API
       fetch("/api/admin/suppliers")
         .then((res) => res.json())
         .then((data) => {
@@ -387,6 +337,43 @@ export default function AdminPage() {
           }
         })
         .catch((err) => console.error("Failed to sync suppliers from server", err));
+
+      // 3. Load initial real orders from Supabase
+      fetchRealOrders();
+
+      // 4. Supabase Realtime Channel - Listen for live incoming orders
+      const channel = supabase
+        .channel("hk-store-orders")
+        .on("broadcast", { event: "new_order" }, (payload: any) => {
+          const newOrd = payload?.payload;
+          if (!newOrd) return;
+          setOrders((prev) => {
+            if (prev.some((o) => o.id === newOrd.id)) return prev;
+            return [newOrd, ...prev];
+          });
+          playOrderChime();
+          setRealtimeNotification(`Nouvelle Commande Directe : ${newOrd.orderNumber} - ${newOrd.clientName} (${Number(newOrd.totalDzd).toLocaleString()} DZD)`);
+          setTimeout(() => setRealtimeNotification(null), 9000);
+        })
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "orders" },
+          () => {
+            fetchRealOrders();
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "orders" },
+          () => {
+            fetchRealOrders();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, []);
 
@@ -556,8 +543,8 @@ export default function AdminPage() {
     setEditProductImages([]);
   };
 
-  // Update order status
-  const handleUpdateOrderStatus = (orderId: string, newStatus: AdminOrder["status"]) => {
+  // Update order status - Synced to Supabase
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: AdminOrder["status"]) => {
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
     );
@@ -571,6 +558,29 @@ export default function AdminPage() {
       },
       ...h,
     ]);
+
+    try {
+      await fetch("/api/admin/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, status: newStatus }),
+      });
+    } catch (e) {
+      console.error("Failed to update order status in DB:", e);
+    }
+  };
+
+  // Delete Order - Synced to Supabase
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!confirm("Voulez-vous vraiment supprimer cette commande ?")) return;
+    setOrders((prev) => prev.filter((o) => o.id !== orderId));
+    try {
+      await fetch(`/api/admin/orders?id=${encodeURIComponent(orderId)}`, {
+        method: "DELETE",
+      });
+    } catch (e) {
+      console.error("Failed to delete order from DB:", e);
+    }
   };
 
   // Add Supplier (Nom + Numéro) - Persistent across reloads
@@ -877,6 +887,25 @@ export default function AdminPage() {
   // ==========================================
   return (
     <div className="min-h-screen bg-[#0F1015] text-[#F4F4F5] flex flex-col font-sans selection:bg-[#C5A880] selection:text-[#0A0A0C]">
+      {/* Realtime Live Floating Notification */}
+      {realtimeNotification && (
+        <div className="fixed top-5 right-5 z-[999] bg-[#0A0A0C] border-2 border-[#10B981] text-[#FFFFFF] px-5 py-4 shadow-[0_0_30px_rgba(16,185,129,0.3)] flex items-center gap-3 animate-bounce max-w-md">
+          <div className="w-3.5 h-3.5 rounded-full bg-[#10B981] animate-ping shrink-0" />
+          <div className="flex-1">
+            <span className="font-heading font-extrabold text-[11px] text-[#10B981] uppercase tracking-wider block">
+              🔔 NOUVELLE COMMANDE REÇUE (EN DIRECT)
+            </span>
+            <p className="text-xs font-mono text-[#FFFFFF] mt-0.5">{realtimeNotification}</p>
+          </div>
+          <button
+            onClick={() => setRealtimeNotification(null)}
+            className="text-[#71717A] hover:text-[#FFFFFF] transition-colors p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Main Layout: Desktop Sidebar + Dynamic Tab View */}
       <div className="flex-1 flex overflow-hidden min-h-screen">
         {/* Sleek Sidebar Navigation */}
@@ -895,12 +924,13 @@ export default function AdminPage() {
                   : "bg-transparent text-[#A1A1AA] border-transparent hover:bg-[#121316] hover:text-[#FFFFFF]"
               }`}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <Package className={`w-4 h-4 ${activeTab === "orders" ? "text-[#C5A880]" : "text-[#71717A]"}`} />
                 <span>Commandes</span>
+                <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" title="Supabase Realtime Live" />
               </div>
               <span className="px-1.5 py-0.5 bg-[#C5A880] text-[#0A0A0C] font-mono font-bold text-[10px]">
-                {orders.filter((o) => o.status === "nouveau").length}
+                {orders.length}
               </span>
             </button>
 
@@ -1039,7 +1069,20 @@ export default function AdminPage() {
                     Suivi en temps r&eacute;el des commandes clients, exp&eacute;ditions Yalidine et livraisons.
                   </p>
                 </div>
-
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981] text-xs font-mono font-bold tracking-wider">
+                    <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse"></span>
+                    SUPABASE REALTIME ACTIF
+                  </span>
+                  <button
+                    onClick={fetchRealOrders}
+                    disabled={isLoadingOrders}
+                    className="h-8 px-3 bg-[#18191E] border border-[#27272A] hover:border-[#C5A880] text-xs text-[#A1A1AA] hover:text-[#FFFFFF] flex items-center gap-1.5 transition-colors font-mono cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingOrders ? "animate-spin text-[#C5A880]" : ""}`} />
+                    <span>Actualiser</span>
+                  </button>
+                </div>
               </div>
 
               {/* Status Filter Tabs & Search Bar */}
@@ -1098,10 +1141,23 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1F2128]">
-                    {filteredOrders.length === 0 ? (
+                    {isLoadingOrders ? (
                       <tr>
                         <td colSpan={8} className="py-12 text-center text-[#71717A] font-heading uppercase">
-                          Aucune commande trouvée
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <RefreshCw className="w-5 h-5 text-[#C5A880] animate-spin" />
+                            <span>Chargement des commandes depuis Supabase...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : filteredOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-16 text-center text-[#71717A] font-heading uppercase">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-[#10B981] animate-ping mb-1" />
+                            <span className="text-sm text-[#FFFFFF] font-bold">AUCUNE COMMANDE POUR LE MOMENT</span>
+                            <span className="text-xs text-[#10B981] font-mono">En écoute en direct (Supabase Realtime Live) — Faites un test depuis le site !</span>
+                          </div>
                         </td>
                       </tr>
                     ) : (
@@ -1166,34 +1222,44 @@ export default function AdminPage() {
                             </span>
                           </td>
 
-                          {/* 8. Statut */}
+                          {/* 8. Statut & Actions */}
                           <td className="py-3 px-4 text-right whitespace-nowrap">
-                            <select
-                              value={ord.status}
-                              onChange={(e) =>
-                                handleUpdateOrderStatus(ord.id, e.target.value as AdminOrder["status"])
-                              }
-                              className={`h-7 px-2 border text-[10px] font-heading font-bold uppercase tracking-wider focus:outline-none bg-[#18191E] ${
-                                ord.status === "nouveau"
-                                  ? "text-[#F59E0B] border-[#F59E0B]/40"
-                                  : ord.status === "confirme"
-                                  ? "text-[#3B82F6] border-[#3B82F6]/40"
-                                  : ord.status === "expedie"
-                                  ? "text-[#8B5CF6] border-[#8B5CF6]/40"
-                                  : ord.status === "livre"
-                                  ? "text-[#10B981] border-[#10B981]/40"
-                                  : ord.status === "retour"
-                                  ? "text-[#F43F5E] border-[#F43F5E]/40"
-                                  : "text-[#EF4444] border-[#EF4444]/40"
-                              }`}
-                            >
-                              <option value="nouveau">Nouveau</option>
-                              <option value="confirme">Confirmé</option>
-                              <option value="expedie">Expédié Yalidine</option>
-                              <option value="livre">Livré (Encaissé)</option>
-                              <option value="retour">Retour</option>
-                              <option value="annule">Annulé</option>
-                            </select>
+                            <div className="flex items-center justify-end gap-2">
+                              <select
+                                value={ord.status}
+                                onChange={(e) =>
+                                  handleUpdateOrderStatus(ord.id, e.target.value as AdminOrder["status"])
+                                }
+                                className={`h-7 px-2 border text-[10px] font-heading font-bold uppercase tracking-wider focus:outline-none bg-[#18191E] ${
+                                  ord.status === "nouveau"
+                                    ? "text-[#F59E0B] border-[#F59E0B]/40"
+                                    : ord.status === "confirme"
+                                    ? "text-[#3B82F6] border-[#3B82F6]/40"
+                                    : ord.status === "expedie"
+                                    ? "text-[#8B5CF6] border-[#8B5CF6]/40"
+                                    : ord.status === "livre"
+                                    ? "text-[#10B981] border-[#10B981]/40"
+                                    : ord.status === "retour"
+                                    ? "text-[#F43F5E] border-[#F43F5E]/40"
+                                    : "text-[#EF4444] border-[#EF4444]/40"
+                                }`}
+                              >
+                                <option value="nouveau">Nouveau</option>
+                                <option value="confirme">Confirmé</option>
+                                <option value="expedie">Expédié Yalidine</option>
+                                <option value="livre">Livré (Encaissé)</option>
+                                <option value="retour">Retour</option>
+                                <option value="annule">Annulé</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteOrder(ord.id)}
+                                className="p-1.5 bg-[#DC2626]/10 hover:bg-[#DC2626]/20 border border-[#DC2626]/30 text-[#EF4444] transition-colors cursor-pointer"
+                                title="Supprimer la commande"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))

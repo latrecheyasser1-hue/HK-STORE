@@ -172,6 +172,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 8. Broadcast Realtime notification to Admin
+    try {
+      const channel = supabaseAdmin.channel("hk-store-orders");
+      await channel.subscribe();
+      await channel.send({
+        type: "broadcast",
+        event: "new_order",
+        payload: {
+          id: newOrder.id,
+          orderNumber: formattedOrderNumber,
+          numericNumber: newOrder.order_number,
+          date: "Aujourd'hui " + new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+          clientName: newOrder.customer_name,
+          phone: newOrder.customer_phone,
+          items: sanitizedItems.map((it) => `${it.product_title} x${it.quantity}`).join(", "),
+          totalDzd: totalAmount,
+          wilayaCode: numWilaya,
+          wilayaName: newOrder.wilaya_name,
+          baladiya: newOrder.commune_name,
+          deliveryType: newOrder.delivery_type === "stopdesk" ? "Stopdesk Yalidine" : "À Domicile",
+          status: newOrder.status,
+          trackingNumber: generatedTracking,
+          created_at: newOrder.created_at,
+          order_items: sanitizedItems,
+        },
+      });
+      supabaseAdmin.removeChannel(channel);
+    } catch (realtimeErr) {
+      console.warn("Realtime broadcast notice:", realtimeErr);
+    }
+
     return NextResponse.json({
       success: true,
       order: {
