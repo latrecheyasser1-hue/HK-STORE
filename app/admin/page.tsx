@@ -2921,92 +2921,15 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Quick Status Buttons & Actions */}
-            <div className="pt-4 border-t border-[#22242B] space-y-3">
-              <div>
-                <span className="text-[11px] font-heading font-bold uppercase tracking-wider text-[#71717A] block mb-2">
-                  Changer rapidement l'état :
-                </span>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "nouveau")}
-                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
-                      selectedOrderDetails.status === "nouveau"
-                        ? "bg-[#F59E0B] text-[#000000] border-[#F59E0B]"
-                        : "bg-[#18191E] text-[#F59E0B] border-[#F59E0B]/30 hover:bg-[#F59E0B]/10"
-                    }`}
-                  >
-                    Nouveau
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "confirme")}
-                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
-                      selectedOrderDetails.status === "confirme"
-                        ? "bg-[#3B82F6] text-[#FFFFFF] border-[#3B82F6]"
-                        : "bg-[#18191E] text-[#60A5FA] border-[#3B82F6]/30 hover:bg-[#3B82F6]/10"
-                    }`}
-                  >
-                    Confirmé
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "expedie")}
-                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
-                      selectedOrderDetails.status === "expedie"
-                        ? "bg-[#8B5CF6] text-[#FFFFFF] border-[#8B5CF6]"
-                        : "bg-[#18191E] text-[#A78BFA] border-[#8B5CF6]/30 hover:bg-[#8B5CF6]/10"
-                    }`}
-                  >
-                    Expédié
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "livre")}
-                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
-                      selectedOrderDetails.status === "livre"
-                        ? "bg-[#10B981] text-[#000000] border-[#10B981]"
-                        : "bg-[#18191E] text-[#10B981] border-[#10B981]/30 hover:bg-[#10B981]/10"
-                    }`}
-                  >
-                    Livré
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "retour")}
-                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
-                      selectedOrderDetails.status === "retour"
-                        ? "bg-[#F43F5E] text-[#FFFFFF] border-[#F43F5E]"
-                        : "bg-[#18191E] text-[#F43F5E] border-[#F43F5E]/30 hover:bg-[#F43F5E]/10"
-                    }`}
-                  >
-                    Retour
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "annule")}
-                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
-                      selectedOrderDetails.status === "annule"
-                        ? "bg-[#EF4444] text-[#FFFFFF] border-[#EF4444]"
-                        : "bg-[#18191E] text-[#EF4444] border-[#EF4444]/30 hover:bg-[#EF4444]/10"
-                    }`}
-                  >
-                    Annulé
-                  </button>
-                </div>
-              </div>
-
-              {/* Bottom Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#22242B]">
-                <button
-                  type="button"
-                  onClick={() => setSelectedOrderDetails(null)}
-                  className="h-10 px-6 rounded-lg bg-[#1F2128] hover:bg-[#27272A] text-[#FFFFFF] font-heading font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
-                >
-                  Fermer
-                </button>
-              </div>
+            {/* Modal Footer */}
+            <div className="pt-4 border-t border-[#22242B] flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedOrderDetails(null)}
+                className="h-10 px-6 rounded-lg bg-[#1F2128] hover:bg-[#27272A] text-[#FFFFFF] font-heading font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                Fermer
+              </button>
             </div>
           </div>
         </div>
