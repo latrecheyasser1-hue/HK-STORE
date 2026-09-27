@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { formatUnifiedOrderNumber } from "@/lib/orderSequence";
 import { FEATURED_PRODUCTS } from "@/data/storeData";
+import { syncOrderStockOnStatusChange, isStatusActive } from "@/lib/stockManager";
 
 // GET all orders for admin
 export async function GET() {
@@ -102,7 +103,7 @@ export async function GET() {
   }
 }
 
-// PATCH: Update order status
+// PATCH: Update order status & automatically sync stock
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
@@ -112,6 +113,19 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "orderId et status requis" }, { status: 400 });
     }
 
+    // 1. Fetch current order to determine oldStatus
+    const { data: currentOrder } = await supabaseAdmin
+      .from("orders")
+      .select("status")
+      .eq("id", orderId)
+      .single();
+
+    const oldStatus = currentOrder?.status || "nouveau";
+
+    // 2. Automatically restore or deduct stock if changing to/from annule or retour
+    const stockSync = await syncOrderStockOnStatusChange(orderId, oldStatus, status);
+
+    // 3. Update order status in DB
     const { data, error } = await supabaseAdmin
       .from("orders")
       .update({ status })
@@ -123,13 +137,17 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, order: data });
+    return NextResponse.json({
+      success: true,
+      order: data,
+      stockSync,
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
-// DELETE: Delete order
+// DELETE: Delete order (restores stock if order was active)
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -139,13 +157,24 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID requis pour supprimer" }, { status: 400 });
     }
 
+    // 1. Check if the order was in an active state; if so, restore items to stock before deletion
+    const { data: currentOrder } = await supabaseAdmin
+      .from("orders")
+      .select("status")
+      .eq("id", orderId)
+      .single();
+
+    if (currentOrder && isStatusActive(currentOrder.status)) {
+      await syncOrderStockOnStatusChange(orderId, currentOrder.status, "annule");
+    }
+
     const { error } = await supabaseAdmin.from("orders").delete().eq("id", orderId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, restored: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

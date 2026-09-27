@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { getNextUnifiedSequence } from "@/lib/orderSequence";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { findMatchingProduct, adjustStock } from "@/lib/stockManager";
 
 const POS_FILE = path.join(process.cwd(), "data", "pos_sales.json");
 
@@ -65,27 +66,19 @@ export async function POST(req: NextRequest) {
     writePosSales(sales);
 
     // Decrement stock in Supabase for each sold item
-    for (const it of items) {
-      const prodId = it.product?.id;
-      const qty = Number(it.quantity || 1);
-      if (prodId) {
-        try {
-          const { data: cur } = await supabaseAdmin
-            .from("products")
-            .select("stock_quantity")
-            .eq("id", prodId)
-            .single();
+    const { data: dbProducts } = await supabaseAdmin
+      .from("products")
+      .select("id, title, stock_quantity");
 
-          if (cur && typeof cur.stock_quantity === "number") {
-            const nextStock = Math.max(0, cur.stock_quantity - qty);
-            await supabaseAdmin
-              .from("products")
-              .update({ stock_quantity: nextStock })
-              .eq("id", prodId);
-          }
-        } catch (stockErr) {
-          console.warn("Stock decrement warning:", stockErr);
-        }
+    for (const it of items) {
+      const qty = Number(it.quantity || 1);
+      const matched = findMatchingProduct((dbProducts || []) as any, {
+        product_id: it.product?.id,
+        product_title: it.product?.title,
+      });
+
+      if (matched) {
+        await adjustStock(matched.id, -qty);
       }
     }
 

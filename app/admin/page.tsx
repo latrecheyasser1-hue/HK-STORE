@@ -293,7 +293,19 @@ export default function AdminPage() {
     }
   };
 
-  // Check Session & load Suppliers and Orders with Realtime on mount
+  const fetchLiveProducts = async () => {
+    try {
+      const res = await fetch("/api/admin/products");
+      const data = await res.json();
+      if (data.success && Array.isArray(data.products)) {
+        setInventory(data.products);
+      }
+    } catch (err) {
+      console.error("Error loading live products from Supabase:", err);
+    }
+  };
+
+  // Check Session & load Suppliers, Products, and Orders with Realtime on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = sessionStorage.getItem("hk_admin_session");
@@ -333,7 +345,10 @@ export default function AdminPage() {
       // 4. Load initial real orders from Supabase
       fetchRealOrders();
 
-      // 4. Supabase Realtime Channel - Listen for live incoming orders
+      // 5. Load live inventory from Supabase
+      fetchLiveProducts();
+
+      // 6. Supabase Realtime Channel - Listen for live incoming orders & product stock changes
       const channel = supabase
         .channel("hk-store-orders")
         .on("broadcast", { event: "new_order" }, (payload: any) => {
@@ -346,12 +361,14 @@ export default function AdminPage() {
           playOrderChime();
           setRealtimeNotification(`Nouvelle Commande Directe : ${newOrd.orderNumber} - ${newOrd.clientName} (${Number(newOrd.totalDzd).toLocaleString()} DZD)`);
           setTimeout(() => setRealtimeNotification(null), 9000);
+          fetchLiveProducts();
         })
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "orders" },
           () => {
             fetchRealOrders();
+            fetchLiveProducts();
           }
         )
         .on(
@@ -359,6 +376,14 @@ export default function AdminPage() {
           { event: "UPDATE", schema: "public", table: "orders" },
           () => {
             fetchRealOrders();
+            fetchLiveProducts();
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "products" },
+          () => {
+            fetchLiveProducts();
           }
         )
         .subscribe();
@@ -413,9 +438,11 @@ export default function AdminPage() {
 
   // Stock adjustments
   const handleStockDelta = (productId: string, delta: number) => {
+    let targetTitle = "";
     setInventory((prev) =>
       prev.map((item) => {
         if (item.id === productId) {
+          targetTitle = item.title;
           const newQty = Math.max(0, item.stockQuantity + delta);
           // Add to history log
           setHistoryLog((h) => [
@@ -433,6 +460,13 @@ export default function AdminPage() {
         return item;
       })
     );
+
+    // Persist to Supabase
+    fetch("/api/admin/products", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId, productTitle: targetTitle, delta }),
+    }).catch((e) => console.error("Failed to persist stock delta:", e));
   };
 
   // Add product to stock
@@ -555,11 +589,15 @@ export default function AdminPage() {
     ]);
 
     try {
-      await fetch("/api/admin/orders", {
+      const res = await fetch("/api/admin/orders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId, status: newStatus }),
       });
+      const data = await res.json();
+      if (data?.stockSync?.adjusted) {
+        fetchLiveProducts();
+      }
     } catch (e) {
       console.error("Failed to update order status in DB:", e);
     }
@@ -574,6 +612,7 @@ export default function AdminPage() {
       await fetch(`/api/admin/orders?id=${encodeURIComponent(orderId)}`, {
         method: "DELETE",
       });
+      fetchLiveProducts();
     } catch (e) {
       console.error("Failed to delete order from DB:", e);
     }

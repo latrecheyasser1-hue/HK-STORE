@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getNextUnifiedSequence } from "@/lib/orderSequence";
+import { findMatchingProduct, adjustStock } from "@/lib/stockManager";
 
 export async function POST(req: NextRequest) {
   try {
@@ -63,7 +64,11 @@ export async function POST(req: NextRequest) {
         : Number(rateData.stopdesk_price);
     }
 
-    // 3. Compute Subtotal & Validate Product Items
+    // 3. Compute Subtotal & Match Real Products from Database
+    const { data: dbProducts } = await supabaseAdmin
+      .from("products")
+      .select("id, title, price, stock_quantity");
+
     let subtotal = 0;
     const sanitizedItems = [];
 
@@ -71,23 +76,21 @@ export async function POST(req: NextRequest) {
       const qty = Math.max(1, parseInt(it.quantity, 10) || 1);
       let unitPrice = Number(it.unit_price) || 0;
 
-      // If product_id is provided, fetch real verified price from database
-      if (it.product_id) {
-        const { data: prod } = await supabaseAdmin
-          .from("products")
-          .select("id, title, price, stock_quantity")
-          .eq("id", it.product_id)
-          .single();
+      const matchedProd = findMatchingProduct(dbProducts || [], {
+        product_id: it.product_id,
+        product_title: it.product_title,
+      });
 
-        if (prod) {
-          unitPrice = Number(prod.price);
+      if (matchedProd) {
+        if (matchedProd.price && !unitPrice) {
+          unitPrice = Number(matchedProd.price);
         }
       }
 
       subtotal += unitPrice * qty;
       sanitizedItems.push({
-        product_id: it.product_id || null,
-        product_title: it.product_title || "Article HK Store",
+        product_id: matchedProd ? matchedProd.id : (it.product_id || null),
+        product_title: matchedProd ? matchedProd.title : (it.product_title || "Article HK Store"),
         quantity: qty,
         unit_price: unitPrice,
         selected_variant: it.selected_variant || null,
@@ -149,23 +152,10 @@ export async function POST(req: NextRequest) {
       console.error("Order items insertion error:", itemsError);
     }
 
-    // 7. Atomic stock decrement for tracked products
+    // 7. Atomic stock decrement for each ordered item
     for (const it of sanitizedItems) {
       if (it.product_id) {
-        // Fetch current stock and safely decrement
-        const { data: curProd } = await supabaseAdmin
-          .from("products")
-          .select("stock_quantity")
-          .eq("id", it.product_id)
-          .single();
-
-        if (curProd && typeof curProd.stock_quantity === "number") {
-          const newStock = Math.max(0, curProd.stock_quantity - it.quantity);
-          await supabaseAdmin
-            .from("products")
-            .update({ stock_quantity: newStock })
-            .eq("id", it.product_id);
-        }
+        await adjustStock(it.product_id, -it.quantity);
       }
     }
 
