@@ -193,7 +193,7 @@ export default function SuiviCommandePage() {
                   Besoin d'une modification d'adresse ou d'un horaire spécifique ?
                 </span>
                 <a
-                  href={`https://wa.me/213550000000?text=Bonjour%20HK%20Store,%20je%20souhaite%20des%20informations%20sur%20ma%20commande%20${searchResult.orderId}`}
+                  href={`https://wa.me/213792746456?text=Bonjour%20HK%20Store,%20je%20souhaite%20des%20informations%20sur%20ma%20commande%20${searchResult.orderId}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-5 py-2.5 bg-[#0A0A0C] hover:bg-[#C5A880] text-[#FFFFFF] hover:text-[#0A0A0C] font-heading font-bold text-xs uppercase tracking-wider transition-colors"
@@ -226,7 +226,7 @@ export default function SuiviCommandePage() {
               <p className="text-xs text-[#4B5563] mt-1 leading-relaxed">
                 Assistance directe pour le suivi de vos colis et conseils horlogers :
                 <br />
-                <strong className="font-mono text-[#0A0A0C]">0550 XX XX XX / 0660 XX XX XX</strong>
+                <strong className="font-mono text-[#0A0A0C]">0792 74 64 56</strong>
               </p>
             </div>
           </div>

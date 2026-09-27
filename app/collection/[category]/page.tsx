@@ -20,6 +20,7 @@ import QuickCODModal from "@/components/QuickCODModal";
 import ProductCard from "@/components/ProductCard";
 import TrustReassurance from "@/components/TrustReassurance";
 import { DEPARTMENTS, FEATURED_PRODUCTS, Product } from "@/data/storeData";
+import { useLiveProducts } from "@/lib/useLiveProducts";
 
 export default function CollectionPage({
   params,
@@ -101,11 +102,13 @@ function CollectionContent({
     }
   };
 
+  const { products: liveProducts } = useLiveProducts();
+
   // Base Category Filter
   let products =
     catSlug === "tous" || catSlug === "all"
-      ? FEATURED_PRODUCTS
-      : FEATURED_PRODUCTS.filter((p) => {
+      ? liveProducts
+      : liveProducts.filter((p) => {
           const cat = p.category.toLowerCase();
           if (catSlug.includes("montre")) return cat.includes("montre");
           if (catSlug.includes("coffret")) return cat.includes("coffret");
@@ -262,6 +265,7 @@ function CollectionContent({
   }
 
   const handleAddToCart = (product: Product) => {
+    if ((product.stockQuantity ?? 1) <= 0) return;
     setCartItems((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {

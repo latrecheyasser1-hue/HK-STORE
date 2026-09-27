@@ -30,15 +30,56 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  Ban
 } from "lucide-react";
 import SearchModal from "@/components/SearchModal";
 import CartDrawer, { CartItem } from "@/components/CartDrawer";
 import QuickCODModal from "@/components/QuickCODModal";
 import { DEPARTMENTS, FEATURED_PRODUCTS, Product } from "@/data/storeData";
+import { useLiveProducts } from "@/lib/useLiveProducts";
+
+const BEST_SELLER_TABS = [
+  { key: "all", label: "Tous" },
+  { key: "Montres", label: "Montres" },
+  { key: "Coffrets Cadeaux", label: "Coffrets Cadeaux" },
+  { key: "Lunettes", label: "Lunettes" },
+  { key: "Maroquinerie & Sacs", label: "Maroquinerie" },
+  { key: "Parfumerie", label: "Parfumerie" },
+  { key: "Vêtements", label: "Vêtements" },
+  { key: "Décorations", label: "Décorations" },
+  { key: "Accessoires", label: "Accessoires" },
+];
 
 export default function HomePage() {
   const router = useRouter();
+  const { products: liveProducts } = useLiveProducts();
+
+  // Best Sellers Filter State (Default: all / Global)
+  const [selectedBestSellerCategory, setSelectedBestSellerCategory] = useState<string>("all");
+
+  // Deduplicate products by id to eliminate any duplicate key errors
+  const uniqueProducts = Array.from(
+    new Map((liveProducts.length > 0 ? liveProducts : FEATURED_PRODUCTS).map((p) => [p.id, p])).values()
+  );
+
+  // Ranked Best Sellers dynamically driven by real sales volume (Units Sold from site orders + POS)
+  const allBestsellers = uniqueProducts.sort((a, b) => {
+    const salesA = typeof a.salesCount === "number" ? a.salesCount : (a.reviewsCount || 0) * 2 + (a.rating || 5);
+    const salesB = typeof b.salesCount === "number" ? b.salesCount : (b.reviewsCount || 0) * 2 + (b.rating || 5);
+    return salesB - salesA;
+  });
+
+  const displayedBestsellers =
+    selectedBestSellerCategory === "all"
+      ? allBestsellers.slice(0, 15) // Top 15 Overall by default
+      : allBestsellers
+          .filter((p) => {
+            const cat = (p.category || "").toLowerCase();
+            const target = selectedBestSellerCategory.toLowerCase();
+            return cat.includes(target) || target.includes(cat);
+          })
+          .slice(0, 10); // Top 10 for specific category
 
   // Drawers & Modals
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -82,6 +123,7 @@ export default function HomePage() {
   };
 
   const handleAddToCart = (product: Product) => {
+    if ((product.stockQuantity ?? 1) <= 0) return;
     setCartItems((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
@@ -264,184 +306,182 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* 5. MEILLEURES VENTES / Best Sellers (Stitch Exact Replica) */}
+        {/* 5. MEILLEURES VENTES / Best Sellers (Stitch Exact Replica + Dynamic Category Tabs) */}
         <section className="w-full px-4 pt-6 pb-2" id="catalog-bestsellers">
-          <div className="flex items-end justify-between mb-4">
-            <div className="flex flex-col">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 mb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#C5A880] animate-pulse" />
+                <span className="font-label-badge text-label-badge uppercase tracking-[0.2em] text-[#C5A880] font-bold text-[10px]">
+                  PALMARÈS EXCLUSIF • الأكثر طلباً
+                </span>
+              </div>
               <h2 className="font-headline-md text-headline-md uppercase font-bold text-on-surface tracking-tight mt-0.5 text-base sm:text-lg">
                 MEILLEURES VENTES
               </h2>
             </div>
+            <span className="text-[11px] text-[#71717A] font-medium hidden sm:block">
+              {selectedBestSellerCategory === "all"
+                ? "15 Meilleurs Modèles (Tout le Site)"
+                : `Top 10 : ${selectedBestSellerCategory}`}
+            </span>
+          </div>
+
+          {/* Category Filter Pills (Switchable Tabs - MCHII KAAML YBAANOO MEA BAED - YBDEL MA BINATHOM) */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 -mx-4 px-4 pt-1">
+            {BEST_SELLER_TABS.map((tab) => {
+              const isActive = selectedBestSellerCategory === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setSelectedBestSellerCategory(tab.key)}
+                  className={`h-9 px-4 text-xs font-heading font-bold uppercase tracking-wider whitespace-nowrap transition-all flex items-center justify-center cursor-pointer rounded-none border ${
+                    isActive
+                      ? "bg-[#0A0A0C] text-[#FFFFFF] border-[#0A0A0C] shadow-sm font-extrabold"
+                      : "bg-[#FFFFFF] text-[#6B7280] border-[#E5E7EB] hover:border-[#0A0A0C] hover:text-[#0A0A0C]"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex overflow-x-auto gap-3.5 no-scrollbar pb-3 snap-x -mx-4 px-4">
-            {/* Product Card 1 */}
-            <div className="min-w-[260px] max-w-[260px] bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between shrink-0 shadow-sm snap-start">
-              <Link href="/product/prod-1" className="relative w-full h-[240px] bg-surface-container overflow-hidden group block">
-                <img
-                  alt="COFFRET ROYAL BLACK CHRONO"
-                  className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
-                  src="https://lh3.googleusercontent.com/aida/AEtjO1WOMz1Rw1qk1sy7Vob_AARz2qpUyguBCsSU3uSai-5Wo3h5fnzCfXV3_A1ZNw5uP59tYi-K80lh0qm7XiKXDCPO5K_-ybubyr3bQW9H162AVPc3IOB85N3RGcZ1ft8ztxthl1m6IAscTzhnzYQ6i-XoVKnXhumtW7JqJUsARjtusOyiaD171dlOrhgJ_FuW0oF5i6sPTEHdc12ugnJ67XrIndDfJaEupT67sXfdsBT6NM8El28wQL_2fw"
-                />
-              </Link>
-              <div className="p-3.5 flex flex-col flex-1 justify-between">
-                <div className="flex flex-col">
-                  <span className="font-label-badge text-[9px] uppercase tracking-[0.2em] text-[#e0c298] font-bold">
-                    COFFRET CADEAU
-                  </span>
-                  <Link href="/product/prod-1">
-                    <h3 className="font-headline-sm text-[12px] font-bold uppercase tracking-tight text-on-surface mt-1 leading-snug hover:text-secondary transition-colors">
-                      COFFRET ROYAL BLACK CHRONO + PORTEFEUILLE
-                    </h3>
-                  </Link>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="font-headline-sm text-price-lg font-extrabold text-primary text-base">
-                      5,800 DZD
-                    </span>
-                    <span className="font-body-sm text-price-strike text-on-surface-variant line-through text-xs text-[#9CA3AF]">
-                      7,900 DZD
-                    </span>
-                  </div>
-                </div>
-                <button
-                  className="w-full mt-3.5 h-11 bg-[#0A0A0C] hover:bg-[#C5A880] text-[#FFFFFF] hover:text-[#0A0A0C] font-heading font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.99]"
-                  onClick={() => {
-                    handleAddToCart(FEATURED_PRODUCTS[0]);
-                    updateStickyCart("COFFRET ROYAL BLACK", "5,800 DZD", "prod-1");
-                  }}
-                  type="button"
-                >
-                  <ShoppingBag className="w-4 h-4 stroke-[1.5] text-current" />
-                  <span className="text-[#FFFFFF] group-hover:text-inherit">AJOUTER AU PANIER</span>
-                </button>
+            {displayedBestsellers.length === 0 ? (
+              <div className="w-full py-12 text-center text-xs text-[#71717A] bg-surface-container-lowest border border-[#E5E7EB]">
+                Aucun modèle disponible pour cette catégorie actuellement.
               </div>
-            </div>
+            ) : (
+              displayedBestsellers.map((prod, idx) => {
+                const isOutOfStock = (prod.stockQuantity ?? 1) <= 0;
 
-            {/* Product Card 2 */}
-            <div className="min-w-[260px] max-w-[260px] bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between shrink-0 shadow-sm snap-start">
-              <Link href="/product/prod-2" className="relative w-full h-[240px] bg-surface-container overflow-hidden group block">
-                <img
-                  alt="CHRONO PHANTOM NOIR MAT SAPHIR"
-                  className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
-                  src="https://lh3.googleusercontent.com/aida/AEtjO1XzJjlK_t2Aw34By9eINLZqBDJdXXP-Dp0ceDr55wa5FBX68qy6xFBTjSU-x3Y9bmVWiqRgH5Hf7Z71fHJ2S-hQMk-EftXaUbHss6wQb9JW-86BBKOTJf7k5jqKlOgSorGdtOVQ5HD1Pq1Fc3wICCVlotE9Ukc-1sdBLJVud2MbjDWL2RcGyqUgRCAc4e3v3KsvBFTAglHbRFf2_kmj5giUhSVBq7aY9EGKPuzr6dexho3CpvVuzm15TQ"
-                />
-              </Link>
-              <div className="p-3.5 flex flex-col flex-1 justify-between">
-                <div className="flex flex-col">
-                  <span className="font-label-badge text-[9px] uppercase tracking-[0.2em] text-[#e0c298] font-bold">
-                    HORLOGERIE NOIRE
-                  </span>
-                  <Link href="/product/prod-2">
-                    <h3 className="font-headline-sm text-[12px] font-bold uppercase tracking-tight text-on-surface mt-1 leading-snug hover:text-secondary transition-colors">
-                      CHRONO PHANTOM NOIR MAT SAPHIR
-                    </h3>
-                  </Link>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="font-headline-sm text-price-lg font-extrabold text-primary text-base">
-                      4,200 DZD
-                    </span>
-                    <span className="font-body-sm text-price-strike text-on-surface-variant line-through text-xs text-[#9CA3AF]">
-                      5,500 DZD
-                    </span>
-                  </div>
-                </div>
-                <button
-                  className="w-full mt-3.5 h-11 bg-[#0A0A0C] hover:bg-[#C5A880] text-[#FFFFFF] hover:text-[#0A0A0C] font-heading font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.99]"
-                  onClick={() => {
-                    handleAddToCart(FEATURED_PRODUCTS[1]);
-                    updateStickyCart("CHRONO PHANTOM NOIR", "4,200 DZD", "prod-2");
-                  }}
-                  type="button"
-                >
-                  <ShoppingBag className="w-4 h-4 stroke-[1.5] text-current" />
-                  <span className="text-[#FFFFFF] group-hover:text-inherit">AJOUTER AU PANIER</span>
-                </button>
-              </div>
-            </div>
+                return (
+                  <div
+                    key={`bs-${prod.id}-${idx}`}
+                    className={`min-w-[260px] max-w-[260px] bg-surface-container-lowest border flex flex-col justify-between shrink-0 shadow-sm snap-start transition-all relative overflow-hidden ${
+                      isOutOfStock ? "border-[#E5E7EB] opacity-90" : "border-outline-variant/30"
+                    }`}
+                  >
+                    <Link
+                      href={`/product/${prod.id}`}
+                      className="relative w-full h-[240px] bg-surface-container overflow-hidden group block"
+                    >
+                      {/* Rank / Performance Medal Badge */}
+                      <div className="absolute top-2 left-2 z-20">
+                        {idx === 0 ? (
+                          <span className="px-2.5 py-0.5 bg-[#C5A880] text-[#0A0A0C] font-heading font-black text-[9px] uppercase tracking-wider shadow-sm">
+                            N°1 VENTE
+                          </span>
+                        ) : idx === 1 ? (
+                          <span className="px-2.5 py-0.5 bg-[#E2E8F0] text-[#0A0A0C] font-heading font-black text-[9px] uppercase tracking-wider shadow-sm">
+                            N°2 VENTE
+                          </span>
+                        ) : idx === 2 ? (
+                          <span className="px-2.5 py-0.5 bg-[#F59E0B] text-[#FFFFFF] font-heading font-black text-[9px] uppercase tracking-wider shadow-sm">
+                            N°3 VENTE
+                          </span>
+                        ) : prod.badge ? (
+                          <span className="px-2 py-0.5 bg-[#0A0A0C]/80 text-[#FFFFFF] font-heading font-bold text-[9px] uppercase tracking-wider backdrop-blur-xs">
+                            {prod.badge}
+                          </span>
+                        ) : null}
+                      </div>
 
-            {/* Product Card 3 */}
-            <div className="min-w-[260px] max-w-[260px] bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between shrink-0 shadow-sm snap-start">
-              <Link href="/product/prod-4" className="relative w-full h-[240px] bg-surface-container overflow-hidden group block">
-                <img
-                  alt="HAUTE PARFUMERIE AURELIA PARIS"
-                  className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
-                  src="https://lh3.googleusercontent.com/aida/AEtjO1XbDmX3XOTXZAlQriGCpz8imDgoDhR7i4unGpAvSNbH11HXzMFPQWFXpZZEOJEt4ED7od63_CSgnLGnbhtu_2XGg3VICAwHSvcrB4skmP8psVqShjZMaJYjT7PmMhIvnmqoLAGTlOPf92Qobis1BBP7bkrPYHRd3dopbUYlYY0qhrIN-6TI0VskRVI79odAhym1zOJViAEcZg6gOP-IzlB4qLjokdfKjOdjOM7VZrH4Zf0YOfAzIVxvwoI"
-                />
-              </Link>
-              <div className="p-3.5 flex flex-col flex-1 justify-between">
-                <div className="flex flex-col">
-                  <span className="font-label-badge text-[9px] uppercase tracking-[0.2em] text-[#e0c298] font-bold">
-                    PARFUM INTENSE
-                  </span>
-                  <Link href="/product/prod-4">
-                    <h3 className="font-headline-sm text-[12px] font-bold uppercase tracking-tight text-on-surface mt-1 leading-snug hover:text-secondary transition-colors">
-                      HAUTE PARFUMERIE AURELIA PARIS
-                    </h3>
-                  </Link>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="font-headline-sm text-price-lg font-extrabold text-primary text-base">
-                      4,800 DZD
-                    </span>
-                    <span className="font-body-sm text-price-strike text-on-surface-variant line-through text-xs text-[#9CA3AF]">
-                      6,000 DZD
-                    </span>
-                  </div>
-                </div>
-                <button
-                  className="w-full mt-3.5 h-11 bg-[#0A0A0C] hover:bg-[#C5A880] text-[#FFFFFF] hover:text-[#0A0A0C] font-heading font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.99]"
-                  onClick={() => {
-                    handleAddToCart(FEATURED_PRODUCTS[3]);
-                    updateStickyCart("AURELIA PARIS EDP", "4,800 DZD", "prod-4");
-                  }}
-                  type="button"
-                >
-                  <ShoppingBag className="w-4 h-4 stroke-[1.5] text-current" />
-                  <span className="text-[#FFFFFF] group-hover:text-inherit">AJOUTER AU PANIER</span>
-                </button>
-              </div>
-            </div>
+                      {/* Banner ÉPUISÉ / نفد من المخزون */}
+                      {isOutOfStock && (
+                        <div className="absolute top-0 inset-x-0 z-30 bg-[#DC2626] text-[#FFFFFF] py-2 px-3 shadow-lg flex items-center justify-between border-b-2 border-[#B91C1C]">
+                          <span className="font-heading font-black text-[11px] tracking-widest uppercase flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                            ÉPUISÉ
+                          </span>
+                          <span className="font-arabic font-extrabold text-[11px] dir-rtl">
+                            نَفِدَ من المخزون
+                          </span>
+                        </div>
+                      )}
 
-            {/* Product Card 4 */}
-            <div className="min-w-[260px] max-w-[260px] bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between shrink-0 shadow-sm snap-start">
-              <Link href="/product/prod-3" className="relative w-full h-[240px] bg-surface-container overflow-hidden group block">
-                <img
-                  alt="COFFRET FEMME MONTRE DORÉE + JONC"
-                  className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
-                  src="https://lh3.googleusercontent.com/aida/AEtjO1XpP0ENYC5JiY9LJ4RYdVGZTXsWbsTs3Q4ymiKYKjXv22mEThiUFsZsMAeBfqvAfZ2q3ZIK5UDIFjSKdfvmPWWZBdDsE8CiQN6w19IIxPaNS88qAllGfPAg3198qDKMJ4ZJfEOn0b3DKs10_x9LCgG6v7Vgvc3ziMc7L6pjBoQb5faazKVC18Z8jkAVO_eJyBehUuz-8p16Yc-yCpGhFuoJO-wBMyuBRTtGuwWCvm7sdGkIPI86YdbYtA"
-                />
-              </Link>
-              <div className="p-3.5 flex flex-col flex-1 justify-between">
-                <div className="flex flex-col">
-                  <span className="font-label-badge text-[9px] uppercase tracking-[0.2em] text-[#e0c298] font-bold">
-                    ÉCRIN FEMME
-                  </span>
-                  <Link href="/product/prod-3">
-                    <h3 className="font-headline-sm text-[12px] font-bold uppercase tracking-tight text-on-surface mt-1 leading-snug hover:text-secondary transition-colors">
-                      COFFRET FEMME MONTRE DORÉE + JONC
-                    </h3>
-                  </Link>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="font-headline-sm text-price-lg font-extrabold text-primary text-base">
-                      4,900 DZD
-                    </span>
-                    <span className="font-body-sm text-price-strike text-on-surface-variant line-through text-xs text-[#9CA3AF]">
-                      6,200 DZD
-                    </span>
+                      <img
+                        alt={prod.title}
+                        style={isOutOfStock ? { filter: "grayscale(100%) contrast(75%)", opacity: 0.55 } : undefined}
+                        className={`w-full h-full object-cover object-center transition-all duration-700 ${
+                          isOutOfStock ? "grayscale contrast-75 opacity-50" : "group-hover:scale-105"
+                        }`}
+                        src={prod.image}
+                      />
+                    </Link>
+
+                    <div className="p-3.5 flex flex-col flex-1 justify-between">
+                      <div className="flex flex-col">
+                        <div className="flex items-center justify-between">
+                          <span className="font-label-badge text-[9px] uppercase tracking-[0.2em] text-[#e0c298] font-bold">
+                            {prod.category}
+                          </span>
+                          {isOutOfStock ? (
+                            <span className="text-[9px] font-heading font-bold text-[#DC2626] uppercase tracking-wider">
+                              0 en stock
+                            </span>
+                          ) : (prod.stockQuantity ?? 1) <= 3 ? (
+                            <span className="text-[9px] font-heading font-bold text-[#F59E0B] uppercase tracking-wider">
+                              Dernières pièces
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <Link href={`/product/${prod.id}`}>
+                          <h3
+                            className={`font-headline-sm text-[12px] font-bold uppercase tracking-tight mt-1 leading-snug transition-colors line-clamp-2 ${
+                              isOutOfStock ? "text-[#6B7280]" : "text-on-surface hover:text-secondary"
+                            }`}
+                          >
+                            {prod.title}
+                          </h3>
+                        </Link>
+
+                        <div className="flex items-baseline gap-2 mt-2">
+                          <span
+                            className={`font-headline-sm text-price-lg font-extrabold text-base ${
+                              isOutOfStock ? "text-[#9CA3AF]" : "text-primary"
+                            }`}
+                          >
+                            {prod.price.toLocaleString()} DZD
+                          </span>
+                          {prod.originalPrice && (
+                            <span className="font-body-sm text-price-strike text-on-surface-variant line-through text-xs text-[#9CA3AF]">
+                              {prod.originalPrice.toLocaleString()} DZD
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {isOutOfStock ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full mt-3.5 h-11 bg-[#F4F4F5] text-[#9CA3AF] border border-[#E4E4E7] font-heading font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 cursor-not-allowed select-none opacity-80"
+                        >
+                          <Ban className="w-4 h-4 stroke-[2] text-[#DC2626]" />
+                          <span className="text-[#6B7280]">RUPTURE DE STOCK • نَفِدَ</span>
+                        </button>
+                      ) : (
+                        <button
+                          className="w-full mt-3.5 h-11 bg-[#0A0A0C] hover:bg-[#C5A880] text-[#FFFFFF] hover:text-[#0A0A0C] font-heading font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.99] cursor-pointer"
+                          onClick={() => {
+                            handleAddToCart(prod);
+                            updateStickyCart(prod.title, `${prod.price.toLocaleString()} DZD`, prod.id);
+                          }}
+                          type="button"
+                        >
+                          <ShoppingBag className="w-4 h-4 stroke-[1.5] text-current" />
+                          <span className="text-[#FFFFFF] group-hover:text-inherit">AJOUTER AU PANIER</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <button
-                  className="w-full mt-3.5 h-11 bg-[#0A0A0C] hover:bg-[#C5A880] text-[#FFFFFF] hover:text-[#0A0A0C] font-heading font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.99]"
-                  onClick={() => {
-                    handleAddToCart(FEATURED_PRODUCTS[2]);
-                    updateStickyCart("COFFRET FEMME MONTRE", "4,900 DZD", "prod-3");
-                  }}
-                  type="button"
-                >
-                  <ShoppingBag className="w-4 h-4 stroke-[1.5] text-current" />
-                  <span className="text-[#FFFFFF] group-hover:text-inherit">AJOUTER AU PANIER</span>
-                </button>
-              </div>
-            </div>
+                );
+              })
+            )}
           </div>
         </section>
 
@@ -513,8 +553,8 @@ export default function HomePage() {
               </div>
             </div>
             <a
-              className="mt-3.5 w-full py-2.5 px-3 border border-[#c8c5ca]/30 hover:border-[#ffffff] bg-transparent text-[#ffffff] font-label-caps text-[10px] uppercase font-bold tracking-[0.14em] flex items-center justify-center gap-2 transition-colors"
-              href="https://maps.google.com/?q=Chlef+Algerie"
+              className="mt-3.5 w-full py-2.5 px-3 border border-[#c8c5ca]/30 hover:border-[#ffffff] bg-transparent text-[#ffffff] font-label-caps text-[10px] uppercase font-bold tracking-[0.14em] flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              href="https://maps.app.goo.gl/hueVRXbrsJ4i39Du9?g_st=it"
               rel="noopener noreferrer"
               target="_blank"
             >
@@ -530,18 +570,18 @@ export default function HomePage() {
             </span>
             <div className="grid grid-cols-1 gap-2">
               <a
-                className="flex items-center justify-between p-3 border border-[#78767b]/25 bg-[#1c1b1d]/70 text-[#f9f9ff] hover:border-[#e0c298] transition-colors"
-                href="https://wa.me/213550000000?text=Bonjour%20HK%20Store%20Chlef"
+                className="flex items-center justify-between p-3 border border-[#78767b]/25 bg-[#1c1b1d]/70 text-[#f9f9ff] hover:border-[#25D366] transition-colors cursor-pointer"
+                href="https://wa.me/213792746456?text=Bonjour%20HK%20Store%20Chlef"
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 <div className="flex items-center gap-3">
-                  <Phone className="w-5 h-5 text-[#e0c298] stroke-[1.5]" />
+                  <Phone className="w-5 h-5 text-[#25D366] stroke-[1.5]" />
                   <div className="flex flex-col text-left">
                     <span className="font-label-caps text-[11px] font-bold uppercase tracking-wider text-[#ffffff]">
-                      WhatsApp
+                      WhatsApp &amp; Téléphone
                     </span>
-                    <span className="font-mono text-[10px] text-[#c8c5ca]">0550 XX XX XX</span>
+                    <span className="font-mono text-[10px] text-[#c8c5ca]">0792 74 64 56</span>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-[#c8c5ca]" />
@@ -549,18 +589,18 @@ export default function HomePage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <a
-                  className="flex items-center justify-center gap-2 p-2.5 border border-[#78767b]/25 bg-[#1c1b1d]/70 text-[#f9f9ff] hover:border-[#ffffff] transition-colors text-center"
-                  href="https://instagram.com"
+                  className="flex items-center justify-center gap-2 p-2.5 border border-[#78767b]/25 bg-[#1c1b1d]/70 text-[#f9f9ff] hover:border-[#E1306C] hover:text-[#E1306C] transition-colors text-center cursor-pointer"
+                  href="https://www.instagram.com/hkstore_chlef?stkn=MXcxbWdkazV1bHk4ZA=="
                   rel="noopener noreferrer"
                   target="_blank"
                 >
                   <span className="font-label-caps text-[10px] font-bold uppercase tracking-wider">
-                    @hkstorechlef
+                    Instagram • @hkstore_chlef
                   </span>
                 </a>
                 <a
-                  className="flex items-center justify-center gap-2 p-2.5 border border-[#78767b]/25 bg-[#1c1b1d]/70 text-[#f9f9ff] hover:border-[#ffffff] transition-colors text-center"
-                  href="https://facebook.com"
+                  className="flex items-center justify-center gap-2 p-2.5 border border-[#78767b]/25 bg-[#1c1b1d]/70 text-[#f9f9ff] hover:border-[#1877F2] hover:text-[#1877F2] transition-colors text-center cursor-pointer"
+                  href="https://www.facebook.com/share/1E8jBtYmH4/?mibextid=wwXIfr"
                   rel="noopener noreferrer"
                   target="_blank"
                 >
@@ -571,13 +611,13 @@ export default function HomePage() {
               </div>
 
               <a
-                className="flex items-center justify-center gap-2 p-2.5 border border-[#78767b]/25 bg-[#1c1b1d]/70 text-[#f9f9ff] hover:border-[#ffffff] transition-colors w-full text-center"
-                href="https://tiktok.com/@hkstorechlef"
+                className="flex items-center justify-center gap-2 p-2.5 border border-[#78767b]/25 bg-[#1c1b1d]/70 text-[#f9f9ff] hover:border-[#00f2fe] hover:text-[#00f2fe] transition-colors w-full text-center cursor-pointer"
+                href="https://www.tiktok.com/@hk.store.02?_r=1&_t=ZS-9A3Zof1NXU7"
                 rel="noopener noreferrer"
                 target="_blank"
               >
                 <span className="font-label-caps text-[10px] font-bold uppercase tracking-wider">
-                  TikTok • @hkstorechlef
+                  TikTok • @hk.store.02
                 </span>
               </a>
             </div>

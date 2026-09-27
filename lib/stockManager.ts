@@ -1,12 +1,8 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { normalizeText } from "./textUtils";
+import { FEATURED_PRODUCTS } from "@/data/storeData";
 
-export function normalizeText(str: string): string {
-  return (str || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
+export { normalizeText };
 
 export interface MatchedProduct {
   id: string;
@@ -28,6 +24,19 @@ export function findMatchingProduct(
   if (query.product_id) {
     const byId = dbProducts.find((p) => p.id === query.product_id);
     if (byId) return byId;
+
+    // Resolve frontend IDs like "prod-1", "prod-2" to DB product by matching title
+    if (query.product_id.startsWith("prod-")) {
+      const fp = FEATURED_PRODUCTS.find((p) => p.id === query.product_id);
+      if (fp) {
+        const fpNorm = normalizeText(fp.title);
+        const matchFp = dbProducts.find((p) => {
+          const pNorm = normalizeText(p.title);
+          return pNorm === fpNorm || pNorm.includes(fpNorm) || fpNorm.includes(pNorm);
+        });
+        if (matchFp) return matchFp;
+      }
+    }
   }
 
   // 2. Normalized Title match
@@ -38,7 +47,12 @@ export function findMatchingProduct(
   return (
     dbProducts.find((p) => {
       const pNorm = normalizeText(p.title);
-      return pNorm === normQuery || normQuery.includes(pNorm) || pNorm.includes(normQuery);
+      return (
+        pNorm === normQuery ||
+        normQuery.includes(pNorm) ||
+        pNorm.includes(normQuery) ||
+        (normQuery.length > 6 && pNorm.length > 6 && (pNorm.includes(normQuery.slice(0, 10)) || normQuery.includes(pNorm.slice(0, 10))))
+      );
     }) || null
   );
 }
@@ -55,7 +69,7 @@ export async function adjustStock(
   try {
     const { data: cur, error: fetchErr } = await supabaseAdmin
       .from("products")
-      .select("stock_quantity")
+      .select("id, title, stock_quantity")
       .eq("id", productId)
       .single();
 
@@ -77,11 +91,54 @@ export async function adjustStock(
       return { success: false };
     }
 
+    // Broadcast Realtime stock update to storefront and admin
+    broadcastStockUpdate({
+      productId,
+      title: cur.title,
+      stockQuantity: newStock,
+    }).catch((e) => console.warn("Stock broadcast error:", e));
+
     return { success: true, newStock };
   } catch (err) {
     console.error("Error in adjustStock:", err);
     return { success: false };
   }
+}
+
+export async function broadcastStockUpdate(payload: {
+  productId: string;
+  title: string;
+  stockQuantity: number;
+}): Promise<void> {
+  return new Promise<void>((resolve) => {
+    try {
+      const channel = supabaseAdmin.channel("hk-store-stock");
+      channel.subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          try {
+            await channel.send({
+              type: "broadcast",
+              event: "stock_update",
+              payload,
+            });
+          } catch (e) {
+            console.warn("Stock broadcast send error:", e);
+          } finally {
+            setTimeout(() => {
+              supabaseAdmin.removeChannel(channel);
+              resolve();
+            }, 300);
+          }
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          supabaseAdmin.removeChannel(channel);
+          resolve();
+        }
+      });
+      setTimeout(() => resolve(), 2500);
+    } catch (err) {
+      resolve();
+    }
+  });
 }
 
 const ACTIVE_STATUSES = new Set(["nouveau", "confirme", "expedie", "livre"]);

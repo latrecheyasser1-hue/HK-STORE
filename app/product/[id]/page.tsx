@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, use } from "react";
+import React, { useState, useEffect, useMemo, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -14,7 +14,8 @@ import {
   ShoppingBag,
   RotateCcw,
   Sparkles,
-  Share2
+  Share2,
+  Ban
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -22,6 +23,8 @@ import SearchModal from "@/components/SearchModal";
 import MegaNavDrawer from "@/components/MegaNavDrawer";
 import CartDrawer, { CartItem } from "@/components/CartDrawer";
 import { FEATURED_PRODUCTS, WILAYAS_DZ, Product } from "@/data/storeData";
+import { getCommunesForWilaya } from "@/data/algerianCommunes";
+import { useLiveProducts } from "@/lib/useLiveProducts";
 
 export default function ProductDetailPage({
   params,
@@ -32,7 +35,13 @@ export default function ProductDetailPage({
   const router = useRouter();
   const productId = resolvedParams.id;
 
-  const product = FEATURED_PRODUCTS.find((p) => p.id === productId) || FEATURED_PRODUCTS[0];
+  const { products: liveProducts } = useLiveProducts();
+  const product =
+    liveProducts.find((p) => p.id === productId || (p as any).dbId === productId) ||
+    FEATURED_PRODUCTS.find((p) => p.id === productId) ||
+    FEATURED_PRODUCTS[0];
+
+  const isOutOfStock = (product.stockQuantity ?? 1) <= 0;
 
   // UI States
   const [selectedImage, setSelectedImage] = useState(product.image);
@@ -50,6 +59,26 @@ export default function ProductDetailPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
+
+  // Communes for selected wilaya
+  const availableCommunes = useMemo(() => {
+    return getCommunesForWilaya(selectedWilayaCode);
+  }, [selectedWilayaCode]);
+
+  useEffect(() => {
+    if (availableCommunes.length > 0) {
+      setCommune((prev) => {
+        const found = availableCommunes.some((c) => c.nameFr === prev);
+        return found ? prev : availableCommunes[0].nameFr;
+      });
+    } else {
+      setCommune("");
+    }
+  }, [selectedWilayaCode, availableCommunes]);
+
+  useEffect(() => {
+    setSelectedImage(product.image);
+  }, [product.image]);
 
   // Global drawers
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -70,6 +99,7 @@ export default function ProductDetailPage({
   const totalAmount = product.price * quantity + shippingCost;
 
   const handleAddToCart = () => {
+    if (isOutOfStock) return;
     setCartItems((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
@@ -91,8 +121,13 @@ export default function ProductDetailPage({
     setIsCartOpen(true);
   };
 
-  const handleDirectCODOrder = (e: React.FormEvent) => {
+  const handleDirectCODOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isOutOfStock) {
+      alert("Ce produit est actuellement en rupture de stock.");
+      return;
+    }
+
     if (!fullName || !phone) {
       alert("Veuillez remplir votre nom et numéro de téléphone.");
       return;
@@ -105,12 +140,42 @@ export default function ProductDetailPage({
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-      const generatedOrder = `HK-${Date.now().toString().slice(-6)}`;
-      setOrderNumber(generatedOrder);
+    try {
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_name: fullName.trim(),
+          customer_phone: phone.trim(),
+          wilaya_code: currentWilaya.code,
+          wilaya_name: currentWilaya.name,
+          commune_name: commune.trim() || "Centre",
+          delivery_type: deliveryType,
+          items: [
+            {
+              product_id: product.id.startsWith("prod-") ? undefined : product.id,
+              product_title: product.title,
+              quantity: quantity,
+              unit_price: product.price,
+              selected_variant: selectedVariant || null,
+            },
+          ],
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Erreur lors de la validation de la commande.");
+      }
+
+      const generated = data.order?.order_number || `HK-${Date.now().toString().slice(-6)}`;
+      setOrderNumber(generated);
       setOrderSuccess(true);
-    }, 1000);
+    } catch (err: any) {
+      alert(err.message || "Erreur de connexion lors de la commande.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -140,9 +205,18 @@ export default function ProductDetailPage({
               </span>
             </div>
 
-            <div className="flex items-center gap-2 text-[11px] font-heading font-bold text-[#0A0A0C] uppercase tracking-wider">
-              <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
-              <span>Prêt pour expédition immédiate</span>
+            <div className="flex items-center gap-2 text-[11px] font-heading font-bold uppercase tracking-wider">
+              {isOutOfStock ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-[#DC2626]" />
+                  <span className="text-[#DC2626]">Rupture de Stock • نَفِدَ</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+                  <span className="text-[#0A0A0C]">Prêt pour expédition immédiate</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -154,10 +228,28 @@ export default function ProductDetailPage({
             {/* Left Column: Visual Gallery */}
             <div className="lg:col-span-7 flex flex-col gap-4">
               <div className="relative aspect-[4/5] bg-[#F7F7F8] border border-[#E5E7EB] overflow-hidden group">
+                {/* Banner ÉPUISÉ / نفد من المخزون */}
+                {isOutOfStock && (
+                  <div className="absolute top-0 inset-x-0 z-30 bg-[#DC2626] text-[#FFFFFF] py-2.5 px-4 shadow-xl flex items-center justify-between border-b-2 border-[#B91C1C]">
+                    <span className="font-heading font-black text-xs sm:text-sm tracking-widest uppercase flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                      ÉPUISÉ • RUPTURE DE STOCK
+                    </span>
+                    <span className="font-arabic font-extrabold text-xs sm:text-sm dir-rtl">
+                      نَفِدَ تماماً من المخزون
+                    </span>
+                  </div>
+                )}
+
                 <img
                   src={selectedImage}
                   alt={product.title}
-                  className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
+                  style={isOutOfStock ? { filter: "grayscale(100%) contrast(75%)", opacity: 0.55 } : undefined}
+                  className={`w-full h-full object-cover object-center transition-all duration-700 ${
+                    isOutOfStock
+                      ? "grayscale contrast-75 opacity-50"
+                      : "group-hover:scale-105"
+                  }`}
                 />
               </div>
 
@@ -174,7 +266,7 @@ export default function ProductDetailPage({
                   <img
                     src={product.image}
                     alt="Vue Principale"
-                    className="w-full h-full object-cover"
+                    className={`w-full h-full object-cover ${isOutOfStock ? "grayscale opacity-75" : ""}`}
                   />
                 </button>
 
@@ -190,7 +282,7 @@ export default function ProductDetailPage({
                     <img
                       src={product.hoverImage}
                       alt="Vue Angle"
-                      className="w-full h-full object-cover"
+                      className={`w-full h-full object-cover ${isOutOfStock ? "grayscale opacity-75" : ""}`}
                     />
                   </button>
                 )}
@@ -218,13 +310,26 @@ export default function ProductDetailPage({
                 <span className="font-heading text-xs uppercase font-extrabold tracking-[0.2em] text-[#C5A880]">
                   {product.category}
                 </span>
-                <span className="text-[11px] font-heading uppercase tracking-wider text-[#6B7280]">
-                  Réf: {product.id.toUpperCase()}
-                </span>
+                <div className="flex items-center gap-2">
+                  {isOutOfStock ? (
+                    <span className="px-2 py-0.5 bg-[#FEE2E2] text-[#DC2626] border border-[#FCA5A5] text-[10px] font-heading font-bold uppercase tracking-wider">
+                      0 EN STOCK
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0] text-[10px] font-heading font-bold uppercase tracking-wider">
+                      EN STOCK ({product.stockQuantity})
+                    </span>
+                  )}
+                  <span className="text-[11px] font-heading uppercase tracking-wider text-[#6B7280]">
+                    Réf: {product.id.toUpperCase()}
+                  </span>
+                </div>
               </div>
 
               {/* Main Title */}
-              <h1 className="font-heading font-extrabold text-base sm:text-lg lg:text-xl text-[#0A0A0C] uppercase tracking-normal mt-1.5 leading-snug">
+              <h1 className={`font-heading font-extrabold text-base sm:text-lg lg:text-xl uppercase tracking-normal mt-1.5 leading-snug ${
+                isOutOfStock ? "text-[#6B7280]" : "text-[#0A0A0C]"
+              }`}>
                 {product.title}
               </h1>
 
@@ -236,7 +341,9 @@ export default function ProductDetailPage({
               {/* Pricing Display */}
               <div className="py-3 border-b border-[#E5E7EB]">
                 <div className="flex items-baseline gap-3">
-                  <span className="font-heading font-extrabold text-xl sm:text-2xl text-[#0A0A0C] tracking-tight">
+                  <span className={`font-heading font-extrabold text-xl sm:text-2xl tracking-tight ${
+                    isOutOfStock ? "text-[#9CA3AF]" : "text-[#0A0A0C]"
+                  }`}>
                     {product.price.toLocaleString()} DZD
                   </span>
                   {product.originalPrice && (
@@ -254,9 +361,12 @@ export default function ProductDetailPage({
 
               {/* Quantity Selector & Cart Action */}
               <div className="py-4 border-b border-[#E5E7EB] flex items-center gap-4">
-                <div className="flex items-center border border-[#E5E7EB] h-11 bg-[#F7F7F8]">
+                <div className={`flex items-center border border-[#E5E7EB] h-11 bg-[#F7F7F8] ${
+                  isOutOfStock ? "opacity-40 pointer-events-none" : ""
+                }`}>
                   <button
                     type="button"
+                    disabled={isOutOfStock}
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                     className="w-10 h-full flex items-center justify-center font-bold text-sm hover:bg-[#E5E7EB] transition-colors"
                   >
@@ -267,21 +377,33 @@ export default function ProductDetailPage({
                   </span>
                   <button
                     type="button"
-                    onClick={() => setQuantity((q) => Math.min(99, q + 1))}
+                    disabled={isOutOfStock}
+                    onClick={() => setQuantity((q) => Math.min(product.stockQuantity || 99, q + 1))}
                     className="w-10 h-full flex items-center justify-center font-bold text-sm hover:bg-[#E5E7EB] transition-colors"
                   >
                     +
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleAddToCart}
-                  className="flex-1 h-11 bg-[#FFFFFF] hover:bg-[#0A0A0C] text-[#0A0A0C] hover:text-[#FFFFFF] border-2 border-[#0A0A0C] font-heading font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
-                >
-                  <ShoppingBag className="w-4 h-4 stroke-[1.5]" />
-                  <span>Ajouter au Panier</span>
-                </button>
+                {isOutOfStock ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="flex-1 h-11 bg-[#F4F4F5] text-[#9CA3AF] border border-[#E4E4E7] font-heading font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-not-allowed select-none opacity-80"
+                  >
+                    <Ban className="w-4 h-4 stroke-[2] text-[#DC2626]" />
+                    <span>RUPTURE DE STOCK • نَفِدَ</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleAddToCart}
+                    className="flex-1 h-11 bg-[#FFFFFF] hover:bg-[#0A0A0C] text-[#0A0A0C] hover:text-[#FFFFFF] border-2 border-[#0A0A0C] font-heading font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <ShoppingBag className="w-4 h-4 stroke-[1.5]" />
+                    <span>Ajouter au Panier</span>
+                  </button>
+                )}
               </div>
 
               {/* 1-Click Fast COD Form Box */}
@@ -298,7 +420,27 @@ export default function ProductDetailPage({
                   </div>
                 </div>
 
-                {orderSuccess ? (
+                {isOutOfStock ? (
+                  <div className="mt-4 p-5 bg-[#FEF2F2] border border-[#FCA5A5] text-center space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-[#DC2626]/10 text-[#DC2626] mx-auto flex items-center justify-center">
+                      <Ban className="w-6 h-6 stroke-[2]" />
+                    </div>
+                    <h4 className="font-heading font-extrabold text-sm uppercase text-[#991B1B]">
+                      Ce produit est actuellement en rupture de stock
+                    </h4>
+                    <p className="font-arabic text-xs text-[#7F1D1D] dir-rtl">
+                      هذا المنتج نفد بالكامل من المخزون حالياً. لا يمكن استقبال طلبات جديدة عليه حتى يتم تجديد الكمية في مستودع HK STORE.
+                    </p>
+                    <div className="pt-2">
+                      <Link
+                        href="/"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0A0A0C] text-[#FFFFFF] font-heading font-bold text-xs uppercase tracking-wider hover:bg-[#C5A880] hover:text-[#0A0A0C] transition-colors"
+                      >
+                        <span>Découvrir les autres collections</span>
+                      </Link>
+                    </div>
+                  </div>
+                ) : orderSuccess ? (
                   <div className="py-6 text-center">
                     <div className="w-12 h-12 bg-[#10B981]/10 text-[#10B981] mx-auto flex items-center justify-center mb-3">
                       <CheckCircle className="w-6 h-6" />
@@ -370,6 +512,35 @@ export default function ProductDetailPage({
                       </select>
                     </div>
 
+                    {/* Commune / Baladiya Selector */}
+                    <div>
+                      <label className="block text-[11px] font-heading font-bold uppercase tracking-wider text-[#0A0A0C] mb-1">
+                        Commune de Destination * (البلدية)
+                      </label>
+                      {availableCommunes.length > 0 ? (
+                        <select
+                          value={commune}
+                          onChange={(e) => setCommune(e.target.value)}
+                          className="w-full h-11 px-3 bg-[#FFFFFF] border border-[#D1D5DB] focus:border-[#0A0A0C] focus:outline-none text-xs font-heading font-semibold"
+                        >
+                          {availableCommunes.map((c) => (
+                            <option key={`${c.nameFr}-${c.nameAr}`} value={c.nameFr}>
+                              {c.nameFr} - {c.nameAr}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          required
+                          placeholder="Nom de votre commune / بلدية"
+                          value={commune}
+                          onChange={(e) => setCommune(e.target.value)}
+                          className="w-full h-11 px-3 bg-[#FFFFFF] border border-[#D1D5DB] focus:border-[#0A0A0C] focus:outline-none text-xs font-sans placeholder:text-[#9CA3AF]"
+                        />
+                      )}
+                    </div>
+
                     {/* Delivery Mode Toggle */}
                     <div>
                       <label className="block text-[11px] font-heading font-bold uppercase tracking-wider text-[#0A0A0C] mb-1.5">
@@ -406,20 +577,6 @@ export default function ProductDetailPage({
                           </div>
                         </button>
                       </div>
-                    </div>
-
-                    {/* Commune / Address */}
-                    <div>
-                      <label className="block text-[11px] font-heading font-bold uppercase tracking-wider text-[#0A0A0C] mb-1">
-                        Commune ou Adresse exacte (البلدية أو العنوان)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ex: Chlef Centre / Hay Salam"
-                        value={commune}
-                        onChange={(e) => setCommune(e.target.value)}
-                        className="w-full h-11 px-3 bg-[#FFFFFF] border border-[#D1D5DB] focus:border-[#0A0A0C] focus:outline-none text-xs font-sans placeholder:text-[#9CA3AF]"
-                      />
                     </div>
 
                     {/* Cost Summary */}
@@ -495,17 +652,28 @@ export default function ProductDetailPage({
             {(product.price * quantity).toLocaleString()} DZD
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            const formEl = document.querySelector("form");
-            formEl?.scrollIntoView({ behavior: "smooth" });
-          }}
-          className="h-10 px-5 bg-[#FFFFFF] hover:bg-[#C5A880] text-[#0A0A0C] font-heading font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors"
-        >
-          <ShieldCheck className="w-4 h-4 stroke-[1.5]" />
-          <span>COMMANDER (COD)</span>
-        </button>
+        {isOutOfStock ? (
+          <button
+            type="button"
+            disabled
+            className="h-10 px-5 bg-[#374151] text-[#9CA3AF] font-heading font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-not-allowed select-none border border-[#4B5563]"
+          >
+            <Ban className="w-4 h-4 stroke-[2] text-[#EF4444]" />
+            <span>ÉPUISÉ • نَفِدَ</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              const formEl = document.querySelector("form");
+              formEl?.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="h-10 px-5 bg-[#FFFFFF] hover:bg-[#C5A880] text-[#0A0A0C] font-heading font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <ShieldCheck className="w-4 h-4 stroke-[1.5]" />
+            <span>COMMANDER (COD)</span>
+          </button>
+        )}
       </div>
 
       {/* Footer */}

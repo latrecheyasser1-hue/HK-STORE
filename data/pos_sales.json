@@ -1,1 +1,43 @@
-[]
+[
+  {
+    "id": "HK-02",
+    "saleNumber": 2,
+    "date": "Aujourd'hui (27/09/2026)",
+    "time": "01:39",
+    "items": [
+      {
+        "product": {
+          "id": "prod-2",
+          "title": "Montre Homme Chronographe Phantom Noir Mat",
+          "subtitleArabic": "ساعة فانتوم رجالية رياضية مقاومة للماء مع زجاج سفاير",
+          "category": "Montres",
+          "categoryArabic": "ساعات رجالية",
+          "gender": "homme",
+          "badge": "TOP VENTE",
+          "price": 4200,
+          "originalPrice": 5500,
+          "rating": 5,
+          "reviewsCount": 89,
+          "image": "https://lh3.googleusercontent.com/aida/AEtjO1XzJjlK_t2Aw34By9eINLZqBDJdXXP-Dp0ceDr55wa5FBX68qy6xFBTjSU-x3Y9bmVWiqRgH5Hf7Z71fHJ2S-hQMk-EftXaUbHss6wQb9JW-86BBKOTJf7k5jqKlOgSorGdtOVQ5HD1Pq1Fc3wICCVlotE9Ukc-1sdBLJVud2MbjDWL2RcGyqUgRCAc4e3v3KsvBFTAglHbRFf2_kmj5giUhSVBq7aY9EGKPuzr6dexho3CpvVuzm15TQ",
+          "stockQuantity": 8,
+          "description": "Design minimaliste haute horlogerie inspiré de MVMT. Boîtier ultra-fin en acier inoxydable noir mat, cadrans secondaires de chronomètre fonctionnels.",
+          "variants": [
+            {
+              "name": "Bracelet",
+              "options": [
+                "Acier Noir",
+                "Cuir Véritable Noir",
+                "Silicone Sport"
+              ]
+            }
+          ]
+        },
+        "quantity": 1
+      }
+    ],
+    "totalDzd": 4200,
+    "cashGiven": 4200,
+    "changeReturned": 0,
+    "createdAt": "2026-09-27T00:39:04.260Z"
+  }
+]

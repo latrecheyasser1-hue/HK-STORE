@@ -61,9 +61,16 @@ export default function QuickCODModal({
   const subtotal = product.price * quantity;
   const grandTotal = subtotal + shippingCost;
 
+  const isOutOfStock = (product.stockQuantity ?? 1) <= 0;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
+
+    if (isOutOfStock) {
+      setErrorMessage("Ce produit est actuellement en rupture de stock.");
+      return;
+    }
 
     if (!fullName.trim() || !phone.trim()) {
       setErrorMessage("Veuillez remplir votre nom et numéro de téléphone.");
@@ -365,26 +372,37 @@ export default function QuickCODModal({
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="group relative w-full h-14 px-6 rounded-lg bg-[#0A0A0C] hover:bg-[#18191E] border border-[#27272A] hover:border-[#C5A880] text-[#FFFFFF] font-heading font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all duration-200 shadow-xl hover:shadow-[#C5A880]/15 active:scale-[0.99] disabled:opacity-50 cursor-pointer overflow-hidden"
-              >
-                {isSubmitting ? (
-                  <span className="flex items-center gap-2.5">
-                    <span className="w-4 h-4 border-2 border-[#C5A880] border-t-transparent rounded-full animate-spin" />
-                    <span>ENREGISTREMENT DU COLIS...</span>
-                  </span>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-5 h-5 text-[#C5A880] transition-transform duration-200 group-hover:scale-110" />
-                    <span>CONFIRMER MA COMMANDE</span>
-                    <span className="text-[#C5A880] font-mono font-bold text-sm">
-                      • {grandTotal.toLocaleString()} DZD
+              {isOutOfStock ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full h-14 px-6 rounded-lg bg-[#F4F4F5] border border-[#E4E4E7] text-[#9CA3AF] font-heading font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 cursor-not-allowed select-none opacity-80"
+                >
+                  <span className="w-2 h-2 rounded-full bg-[#DC2626]" />
+                  <span>RUPTURE DE STOCK • نَفِدَ من المخزون</span>
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="group relative w-full h-14 px-6 rounded-lg bg-[#0A0A0C] hover:bg-[#18191E] border border-[#27272A] hover:border-[#C5A880] text-[#FFFFFF] font-heading font-extrabold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all duration-200 shadow-xl hover:shadow-[#C5A880]/15 active:scale-[0.99] disabled:opacity-50 cursor-pointer overflow-hidden"
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center gap-2.5">
+                      <span className="w-4 h-4 border-2 border-[#C5A880] border-t-transparent rounded-full animate-spin" />
+                      <span>ENREGISTREMENT DU COLIS...</span>
                     </span>
-                  </>
-                )}
-              </button>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-5 h-5 text-[#C5A880] transition-transform duration-200 group-hover:scale-110" />
+                      <span>CONFIRMER MA COMMANDE</span>
+                      <span className="text-[#C5A880] font-mono font-bold text-sm">
+                        • {grandTotal.toLocaleString()} DZD
+                      </span>
+                    </>
+                  )}
+                </button>
+              )}
 
               <p className="text-[10px] text-[#6B7280] text-center mt-2.5">
                 Vérifiez votre colis avant de payer le livreur • Garantie 100%

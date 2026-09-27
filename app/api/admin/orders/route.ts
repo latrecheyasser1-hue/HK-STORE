@@ -4,6 +4,9 @@ import { formatUnifiedOrderNumber } from "@/lib/orderSequence";
 import { FEATURED_PRODUCTS } from "@/data/storeData";
 import { syncOrderStockOnStatusChange, isStatusActive } from "@/lib/stockManager";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // GET all orders for admin
 export async function GET() {
   try {

@@ -1,0 +1,52 @@
+[
+  {
+    "id": "exp-1790477174030",
+    "title": "FACTURE",
+    "category": "electricite",
+    "amount": 12000,
+    "date": "27/09/2026",
+    "time": "03:46",
+    "notes": "",
+    "createdAt": "2026-09-27T02:46:14.030Z"
+  },
+  {
+    "id": "exp-1",
+    "title": "Loyer Showroom Chlef Centre (Mois en cours)",
+    "category": "loyer",
+    "amount": 45000,
+    "date": "01/09/2026",
+    "time": "10:00",
+    "notes": "Règlement loyer boutique Boulevard Mokdad",
+    "createdAt": "2026-09-27T02:41:06.845Z"
+  },
+  {
+    "id": "exp-2",
+    "title": "Facture Électricité & Climatisation Sonelgaz",
+    "category": "electricite",
+    "amount": 12500,
+    "date": "10/09/2026",
+    "time": "14:30",
+    "notes": "Éclairage vitrines showroom",
+    "createdAt": "2026-09-27T02:41:06.845Z"
+  },
+  {
+    "id": "exp-3",
+    "title": "Achat Sachets Kraft & Rubans Cadeaux VIP",
+    "category": "packaging",
+    "amount": 8500,
+    "date": "15/09/2026",
+    "time": "11:20",
+    "notes": "Packaging luxe pour coffrets",
+    "createdAt": "2026-09-27T02:41:06.845Z"
+  },
+  {
+    "id": "exp-4",
+    "title": "Déjeuner & Restauration Équipe Showroom",
+    "category": "restauration",
+    "amount": 3200,
+    "date": "25/09/2026",
+    "time": "13:00",
+    "notes": "Repas midi équipe vente",
+    "createdAt": "2026-09-27T02:41:06.845Z"
+  }
+]
