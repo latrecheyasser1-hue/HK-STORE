@@ -2825,18 +2825,18 @@ export default function AdminPage() {
                     >
                       {/* Product Image */}
                       <div className="w-16 h-16 rounded-lg bg-[#0A0A0C] border border-[#2E3039] overflow-hidden shrink-0 flex items-center justify-center">
-                        {item.image ? (
-                          <img
-                            src={item.image}
-                            alt={item.product_title}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <Package className="w-7 h-7 text-[#71717A]" />
-                        )}
+                        <img
+                          src={item.image || "/images/hk-womens-watch.jpg"}
+                          alt={item.product_title}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            if (!target.src.includes("/images/hk-womens-watch.jpg")) {
+                              target.src = "/images/hk-womens-watch.jpg";
+                            }
+                          }}
+                        />
                       </div>
 
                       {/* Info */}
@@ -2864,13 +2864,20 @@ export default function AdminPage() {
                     </div>
                   ))
                 ) : (
-                  <div className="p-4 bg-[#18191E] border border-[#22242B] rounded-xl flex items-center justify-between">
-                    <div>
-                      <h4 className="font-heading font-bold text-sm text-[#FFFFFF]">
+                  <div className="p-4 bg-[#18191E] border border-[#22242B] rounded-xl flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-lg bg-[#0A0A0C] border border-[#2E3039] overflow-hidden shrink-0 flex items-center justify-center">
+                      <img
+                        src="/images/hk-womens-watch.jpg"
+                        alt={selectedOrderDetails.items}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-heading font-bold text-sm text-[#FFFFFF] truncate">
                         {selectedOrderDetails.items}
                       </h4>
-                      <p className="text-xs text-[#71717A]">
-                        Prix produit : {(selectedOrderDetails.productPriceDzd || selectedOrderDetails.totalDzd).toLocaleString()} DZD
+                      <p className="text-xs text-[#71717A] mt-1">
+                        Prix : {(selectedOrderDetails.productPriceDzd || selectedOrderDetails.totalDzd).toLocaleString()} DZD
                       </p>
                     </div>
                     <span className="font-mono font-bold text-[#FFFFFF]">

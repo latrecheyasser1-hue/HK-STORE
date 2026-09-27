@@ -23,29 +23,43 @@ export async function GET() {
     const formatted = (rawOrders || []).map((o: any) => {
       const resolvedItems = (o.order_items || []).map((it: any) => {
         let itemImg = it.selected_variant?.image || null;
+        const rawTitle = (it.product_title || "").trim();
+        const normTitle = rawTitle.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+        // 1. Try match featured products first
         if (!itemImg) {
-          const matchDb = dbProducts?.find(
-            (p: any) => p.title.toLowerCase() === it.product_title.toLowerCase()
-          );
+          const matchFeatured = FEATURED_PRODUCTS.find((p) => {
+            const pNorm = p.title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return pNorm === normTitle || normTitle.includes(pNorm) || pNorm.includes(normTitle);
+          });
+          if (matchFeatured?.image) {
+            itemImg = matchFeatured.image;
+          }
+        }
+
+        // 2. Try match Supabase products
+        if (!itemImg) {
+          const matchDb = dbProducts?.find((p: any) => {
+            const pNorm = (p.title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return pNorm === normTitle || normTitle.includes(pNorm) || pNorm.includes(normTitle);
+          });
           if (matchDb && matchDb.images && matchDb.images.length > 0) {
             itemImg = matchDb.images[0];
           }
         }
+
+        // 3. Fallback to high quality watch photo
         if (!itemImg) {
-          const matchFeatured = FEATURED_PRODUCTS.find(
-            (p) => p.title.toLowerCase() === it.product_title.toLowerCase()
-          );
-          if (matchFeatured) {
-            itemImg = matchFeatured.image;
-          }
+          itemImg = "/images/hk-womens-watch.jpg";
         }
+
         return {
           id: it.id,
           product_title: it.product_title,
           quantity: it.quantity,
           unit_price: Number(it.unit_price),
           selected_variant: it.selected_variant,
-          image: itemImg || "/images/hk-womens-watch.jpg",
+          image: itemImg,
         };
       });
 
