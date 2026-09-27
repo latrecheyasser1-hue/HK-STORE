@@ -2991,23 +2991,13 @@ export default function AdminPage() {
               </div>
 
               {/* Bottom Buttons */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#22242B]">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#22242B]">
                 <button
                   type="button"
                   onClick={() => setSelectedOrderDetails(null)}
-                  className="h-10 px-4 rounded-lg bg-[#1F2128] hover:bg-[#27272A] font-heading font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                  className="h-10 px-6 rounded-lg bg-[#1F2128] hover:bg-[#27272A] text-[#FFFFFF] font-heading font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
                 >
                   Fermer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedOrderForInvoice(selectedOrderDetails);
-                  }}
-                  className="h-10 px-5 rounded-lg bg-[#C5A880] hover:bg-[#D4AF37] text-[#0A0A0C] font-heading font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>Imprimer Bordereau Yalidine</span>
                 </button>
               </div>
             </div>
