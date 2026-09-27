@@ -230,7 +230,7 @@ export default function HomePage() {
                           {dept.subcategories.map((subcat, idx) => (
                             <Link
                               key={subcat.slug || idx}
-                              href={`/collection/${dept.slug}`}
+                              href={`/collection/${dept.slug}?sub=${subcat.slug}`}
                               className={`p-3 bg-surface-container-lowest border border-outline-variant/25 hover:border-primary flex flex-col justify-between transition-all duration-300 active:scale-[0.98] group shadow-[0_1px_2px_rgba(0,0,0,0.04)] ${
                                 isOpen
                                   ? "translate-y-0 opacity-100"
