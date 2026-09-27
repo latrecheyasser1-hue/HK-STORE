@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getNextUnifiedSequence } from "@/lib/orderSequence";
 
 export async function POST(req: NextRequest) {
   try {
@@ -95,20 +96,16 @@ export async function POST(req: NextRequest) {
 
     const totalAmount = subtotal + shippingCost;
 
-    // 4. Generate Order Reference
-    // Fetch last order number to build human-friendly #HK-10XX
-    const { count } = await supabaseAdmin
-      .from("orders")
-      .select("*", { count: "exact", head: true });
-    
-    const nextSeq = 1000 + (count || 0) + 1;
-    const formattedOrderNumber = `HK-${nextSeq}`;
+    // 4. Generate Order Reference (Unified sequential counter continuous with POS)
+    const { seqNumber, formattedId } = await getNextUnifiedSequence();
+    const formattedOrderNumber = formattedId;
     const generatedTracking = `YAL-${Math.floor(10000000 + Math.random() * 90000000)}DZ`;
 
     // 5. Insert Order
     const { data: newOrder, error: orderError } = await supabaseAdmin
       .from("orders")
       .insert({
+        order_number: seqNumber,
         customer_name: customer_name.trim(),
         customer_phone: cleanPhone,
         customer_phone_secondary: customer_phone_secondary ? customer_phone_secondary.trim() : null,

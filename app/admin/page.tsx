@@ -55,6 +55,15 @@ const BRANCH_MAP: { branch: string; category: string; categoryArabic: string }[]
     }))
 );
 
+interface OrderItemDetail {
+  id?: string;
+  product_title: string;
+  quantity: number;
+  unit_price: number;
+  image?: string;
+  selected_variant?: any;
+}
+
 interface AdminOrder {
   id: string;
   orderNumber: string;
@@ -71,6 +80,7 @@ interface AdminOrder {
   deliveryType: "À Domicile" | "Stopdesk Yalidine";
   status: "nouveau" | "confirme" | "expedie" | "livre" | "annule" | "retour";
   trackingNumber: string;
+  order_items?: OrderItemDetail[];
 }
 
 interface Supplier {
@@ -126,6 +136,7 @@ export default function AdminPage() {
 
   const [orderSearchQuery, setOrderSearchQuery] = useState("");
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<AdminOrder | null>(null);
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState<AdminOrder | null>(null);
 
   // Products & Stock State (Can increase and decrease stock)
@@ -235,38 +246,7 @@ export default function AdminPage() {
   const [posCart, setPosCart] = useState<POSCartItem[]>([]);
   const [posCashGiven, setPosCashGiven] = useState<string>("");
   const [posHistorySearch, setPosHistorySearch] = useState<string>("");
-  const [posSales, setPosSales] = useState<POSSale[]>([
-    {
-      id: "HK-02",
-      saleNumber: 2,
-      date: "Aujourd'hui",
-      time: "16:20",
-      items: [
-        {
-          product: FEATURED_PRODUCTS[1] || FEATURED_PRODUCTS[0],
-          quantity: 1,
-        },
-      ],
-      totalDzd: 4500,
-      cashGiven: 5000,
-      changeReturned: 500,
-    },
-    {
-      id: "HK-01",
-      saleNumber: 1,
-      date: "Aujourd'hui",
-      time: "14:05",
-      items: [
-        {
-          product: FEATURED_PRODUCTS[0],
-          quantity: 1,
-        },
-      ],
-      totalDzd: 5800,
-      cashGiven: 6000,
-      changeReturned: 200,
-    },
-  ]);
+  const [posSales, setPosSales] = useState<POSSale[]>([]);
   const [posSuccessReceipt, setPosSuccessReceipt] = useState<{
     items: POSCartItem[];
     total: number;
@@ -340,7 +320,17 @@ export default function AdminPage() {
         })
         .catch((err) => console.error("Failed to sync suppliers from server", err));
 
-      // 3. Load initial real orders from Supabase
+      // 3. Load persistent POS sales
+      fetch("/api/admin/pos")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && Array.isArray(data.sales)) {
+            setPosSales(data.sales);
+          }
+        })
+        .catch((err) => console.error("Failed to load POS sales:", err));
+
+      // 4. Load initial real orders from Supabase
       fetchRealOrders();
 
       // 4. Supabase Realtime Channel - Listen for live incoming orders
@@ -550,6 +540,9 @@ export default function AdminPage() {
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
     );
+    setSelectedOrderDetails((prev) =>
+      prev && prev.id === orderId ? { ...prev, status: newStatus } : prev
+    );
     setHistoryLog((h) => [
       {
         id: "hist-" + Date.now(),
@@ -576,6 +569,7 @@ export default function AdminPage() {
   const handleDeleteOrder = async (orderId: string) => {
     if (!confirm("Voulez-vous vraiment supprimer cette commande ?")) return;
     setOrders((prev) => prev.filter((o) => o.id !== orderId));
+    setSelectedOrderDetails((prev) => (prev && prev.id === orderId ? null : prev));
     try {
       await fetch(`/api/admin/orders?id=${encodeURIComponent(orderId)}`, {
         method: "DELETE",
@@ -676,52 +670,53 @@ export default function AdminPage() {
   const posCash = Number(posCashGiven) || 0;
   const posChange = posCash >= posTotal ? posCash - posTotal : 0;
 
-  const handleValidatePosSale = () => {
+  const handleValidatePosSale = async () => {
     if (posCart.length === 0) return;
-    const nextSaleIndex = (posSales[0]?.saleNumber || 0) + 1;
-    const ticketId = formatPosTicketId(nextSaleIndex);
-    const timeStr = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-    const dateStr = "Aujourd'hui";
+    try {
+      const res = await fetch("/api/admin/pos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: posCart,
+          totalDzd: posTotal,
+          cashGiven: posCash || posTotal,
+          changeReturned: posChange,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.sale) {
+        const newSale = data.sale;
+        setPosSales((prev) => [newSale, ...prev]);
 
-    const newSale: POSSale = {
-      id: ticketId,
-      saleNumber: nextSaleIndex,
-      date: dateStr,
-      time: timeStr,
-      items: [...posCart],
-      totalDzd: posTotal,
-      cashGiven: posCash || posTotal,
-      changeReturned: posChange,
-    };
-    setPosSales((prev) => [newSale, ...prev]);
-
-    const ticket = {
-      items: [...posCart],
-      total: posTotal,
-      cash: posCash || posTotal,
-      change: posChange,
-      date: `${dateStr} ${timeStr}`,
-      ticketId: ticketId,
-    };
-    setPosSuccessReceipt(ticket);
-    // Decrease stock for sold items
-    posCart.forEach((cItem) => {
-      handleStockDelta(cItem.product.id, -cItem.quantity);
-    });
-    // Add to history
-    setHistoryLog((h) => [
-      {
-        id: "hist-" + Date.now(),
-        timestamp: "À l'instant",
-        action: "Vente Caisse Showroom Chlef (POS)",
-        type: "caisse",
-        details: `Ticket ${ticketId} : ${ticket.items.length} articles • Encaissé ${posTotal.toLocaleString()} DZD`,
-        amount: posTotal,
-      },
-      ...h,
-    ]);
-    setPosCart([]);
-    setPosCashGiven("");
+        const ticket = {
+          items: [...posCart],
+          total: posTotal,
+          cash: posCash || posTotal,
+          change: posChange,
+          date: `${newSale.date} ${newSale.time}`,
+          ticketId: newSale.id,
+        };
+        setPosSuccessReceipt(ticket);
+        posCart.forEach((cItem) => {
+          handleStockDelta(cItem.product.id, -cItem.quantity);
+        });
+        setHistoryLog((h) => [
+          {
+            id: "hist-" + Date.now(),
+            timestamp: "À l'instant",
+            action: "Vente Caisse Showroom Chlef (POS)",
+            type: "caisse",
+            details: `Ticket ${newSale.id} : ${ticket.items.length} articles • Encaissé ${posTotal.toLocaleString()} DZD`,
+            amount: posTotal,
+          },
+          ...h,
+        ]);
+        setPosCart([]);
+        setPosCashGiven("");
+      }
+    } catch (e) {
+      console.error("Failed to record POS sale:", e);
+    }
   };
 
   // Filtered Orders
@@ -1150,10 +1145,18 @@ export default function AdminPage() {
                       </tr>
                     ) : (
                       filteredOrders.map((ord) => (
-                        <tr key={ord.id} className="hover:bg-[#18191E] transition-colors">
+                        <tr
+                          key={ord.id}
+                          onClick={() => setSelectedOrderDetails(ord)}
+                          className="hover:bg-[#18191E] transition-colors cursor-pointer group"
+                        >
                           {/* 1. N° Commande */}
                           <td className="py-3 px-4 font-mono font-bold text-[#FFFFFF] whitespace-nowrap">
-                            <div>{ord.orderNumber}</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[#C5A880] group-hover:text-[#F3E8D0] group-hover:underline transition-colors">
+                                #{ord.orderNumber}
+                              </span>
+                            </div>
                             <span className="text-[10px] text-[#71717A] font-sans font-normal block">
                               {ord.date}
                             </span>
@@ -1165,7 +1168,10 @@ export default function AdminPage() {
                           </td>
 
                           {/* 3. Numéro */}
-                          <td className="py-3 px-4 font-mono text-[#C5A880] whitespace-nowrap">
+                          <td
+                            className="py-3 px-4 font-mono text-[#C5A880] whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <a
                               href={`tel:${ord.phone.replace(/\s+/g, "")}`}
                               className="inline-flex items-center gap-1.5 hover:underline"
@@ -1202,8 +1208,8 @@ export default function AdminPage() {
                             <span
                               className={`px-2 py-0.5 text-[10px] font-heading font-bold uppercase tracking-wider border ${
                                 ord.deliveryType === "À Domicile"
-                                  ? "bg-[#3B82F6]/10 text-[#60A5FA] border-[#3B82F6]/30"
-                                  : "bg-[#8B5CF6]/10 text-[#A78BFA] border-[#8B5CF6]/30"
+                                    ? "bg-[#3B82F6]/10 text-[#60A5FA] border-[#3B82F6]/30"
+                                    : "bg-[#8B5CF6]/10 text-[#A78BFA] border-[#8B5CF6]/30"
                               }`}
                             >
                               {ord.deliveryType}
@@ -1211,7 +1217,10 @@ export default function AdminPage() {
                           </td>
 
                           {/* 8. Statut & Actions */}
-                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <td
+                            className="py-3 px-4 text-right whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <div className="flex items-center justify-end gap-2">
                               <select
                                 value={ord.status}
@@ -2660,6 +2669,348 @@ export default function AdminPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================= */}
+      {/* MODAL: CARTE DÉTAILLÉE DE LA COMMANDE (AVEC PHOTOS) */}
+      {/* ======================================================= */}
+      {selectedOrderDetails && (
+        <div className="fixed inset-0 z-50 bg-[#000000]/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-3xl bg-[#121316] border border-[#27272A] rounded-2xl shadow-2xl p-5 sm:p-7 text-[#FFFFFF] relative my-auto animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-5 border-b border-[#22242B]">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="font-mono text-2xl sm:text-3xl font-black text-[#C5A880] tracking-wider">
+                    #{selectedOrderDetails.orderNumber}
+                  </span>
+                  <span
+                    className={`px-3 py-1 text-xs font-heading font-bold uppercase tracking-wider rounded border ${
+                      selectedOrderDetails.status === "nouveau"
+                        ? "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30"
+                        : selectedOrderDetails.status === "confirme"
+                        ? "bg-[#3B82F6]/10 text-[#60A5FA] border-[#3B82F6]/30"
+                        : selectedOrderDetails.status === "expedie"
+                        ? "bg-[#8B5CF6]/10 text-[#A78BFA] border-[#8B5CF6]/30"
+                        : selectedOrderDetails.status === "livre"
+                        ? "bg-[#10B981]/10 text-[#10B981] border-[#10B981]/30"
+                        : selectedOrderDetails.status === "retour"
+                        ? "bg-[#F43F5E]/10 text-[#F43F5E] border-[#F43F5E]/30"
+                        : "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/30"
+                    }`}
+                  >
+                    {selectedOrderDetails.status === "nouveau"
+                      ? "Nouveau (En attente confirmation)"
+                      : selectedOrderDetails.status === "confirme"
+                      ? "Confirmé par téléphone"
+                      : selectedOrderDetails.status === "expedie"
+                      ? "Expédié (En cours de livraison)"
+                      : selectedOrderDetails.status === "livre"
+                      ? "Livré & Encaissé"
+                      : selectedOrderDetails.status === "retour"
+                      ? "Colis Retourné"
+                      : "Annulé"}
+                  </span>
+                </div>
+                <p className="text-xs text-[#71717A] font-sans">
+                  Enregistrée le {selectedOrderDetails.date}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedOrderDetails(null)}
+                className="w-9 h-9 rounded-lg bg-[#1F2128] hover:bg-[#27272A] text-[#A1A1AA] hover:text-[#FFFFFF] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grid 2 Cols: Client & Expédition */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-5">
+              {/* Client Card */}
+              <div className="bg-[#18191E] border border-[#27272A] rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-heading font-bold uppercase tracking-wider text-[#A1A1AA]">
+                    Informations Client
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-[#10B981]"></span>
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-lg font-heading font-bold text-[#FFFFFF]">
+                    {selectedOrderDetails.clientName}
+                  </p>
+                  <p className="font-mono text-sm text-[#C5A880]">
+                    {selectedOrderDetails.phone}
+                  </p>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <a
+                    href={`tel:${selectedOrderDetails.phone.replace(/\s+/g, "")}`}
+                    className="flex-1 h-9 px-3 bg-[#1F2128] hover:bg-[#27272A] border border-[#2E3039] rounded-lg text-xs font-heading font-bold flex items-center justify-center gap-1.5 text-[#10B981] transition-colors"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    <span>Appeler</span>
+                  </a>
+                  <a
+                    href={`https://wa.me/213${selectedOrderDetails.phone.replace(/\D/g, "").replace(/^0/, "")}?text=${encodeURIComponent(
+                      `Salam Alaykoum ${selectedOrderDetails.clientName}, c'est HK STORE Chlef concernant votre commande #${selectedOrderDetails.orderNumber}.`
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 h-9 px-3 bg-[#10B981]/15 hover:bg-[#10B981]/25 border border-[#10B981]/30 rounded-lg text-xs font-heading font-bold flex items-center justify-center gap-1.5 text-[#10B981] transition-colors"
+                  >
+                    <span>💬 WhatsApp</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Livraison Card */}
+              <div className="bg-[#18191E] border border-[#27272A] rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-heading font-bold uppercase tracking-wider text-[#A1A1AA]">
+                    Destination & Expédition
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-heading font-bold border ${
+                      selectedOrderDetails.deliveryType === "À Domicile"
+                        ? "bg-[#3B82F6]/10 text-[#60A5FA] border-[#3B82F6]/20"
+                        : "bg-[#8B5CF6]/10 text-[#A78BFA] border-[#8B5CF6]/20"
+                    }`}
+                  >
+                    {selectedOrderDetails.deliveryType}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-sans font-medium text-[#FFFFFF] flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4 text-[#C5A880] shrink-0" />
+                    <span>
+                      {selectedOrderDetails.baladiya} ({String(selectedOrderDetails.wilayaCode).padStart(2, "0")} - {selectedOrderDetails.wilayaName})
+                    </span>
+                  </p>
+                  <p className="text-xs text-[#71717A] pl-5 font-mono">
+                    N° Suivi Yalidine : {selectedOrderDetails.trackingNumber}
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <div className="p-2 bg-[#121316] border border-[#22242B] rounded-lg flex items-center justify-between text-xs">
+                    <span className="text-[#A1A1AA]">Frais de livraison :</span>
+                    <span className="font-mono font-bold text-[#E4E4E7]">
+                      {(selectedOrderDetails.shippingCostDzd || 0).toLocaleString()} DZD
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Articles Details with PHOTOS */}
+            <div className="my-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-heading font-bold uppercase tracking-wider text-[#A1A1AA]">
+                  Contenu de la commande (Articles & Photos)
+                </span>
+                <span className="text-xs text-[#71717A] font-mono">
+                  {selectedOrderDetails.order_items?.length || 1} article(s)
+                </span>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {selectedOrderDetails.order_items && selectedOrderDetails.order_items.length > 0 ? (
+                  selectedOrderDetails.order_items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-4 p-3 bg-[#18191E] border border-[#22242B] rounded-xl hover:border-[#2E3039] transition-colors"
+                    >
+                      {/* Product Image */}
+                      <div className="w-16 h-16 rounded-lg bg-[#0A0A0C] border border-[#2E3039] overflow-hidden shrink-0 flex items-center justify-center">
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            alt={item.product_title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <Package className="w-7 h-7 text-[#71717A]" />
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-heading font-bold text-sm text-[#FFFFFF] truncate">
+                          {item.product_title}
+                        </h4>
+                        {item.selected_variant && (
+                          <p className="text-xs text-[#A1A1AA] mt-0.5 truncate">
+                            Variante : {typeof item.selected_variant === "object" ? JSON.stringify(item.selected_variant) : String(item.selected_variant)}
+                          </p>
+                        )}
+                        <p className="text-xs text-[#71717A] font-mono mt-1">
+                          Quantité : <span className="text-[#FFFFFF] font-bold">x{item.quantity}</span> à{" "}
+                          <span className="text-[#C5A880]">{item.unit_price?.toLocaleString()} DZD</span>
+                        </p>
+                      </div>
+
+                      {/* Total line */}
+                      <div className="text-right shrink-0">
+                        <span className="font-mono font-bold text-base text-[#FFFFFF] block">
+                          {((item.unit_price || 0) * (item.quantity || 1)).toLocaleString()} DZD
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 bg-[#18191E] border border-[#22242B] rounded-xl flex items-center justify-between">
+                    <div>
+                      <h4 className="font-heading font-bold text-sm text-[#FFFFFF]">
+                        {selectedOrderDetails.items}
+                      </h4>
+                      <p className="text-xs text-[#71717A]">
+                        Prix produit : {(selectedOrderDetails.productPriceDzd || selectedOrderDetails.totalDzd).toLocaleString()} DZD
+                      </p>
+                    </div>
+                    <span className="font-mono font-bold text-[#FFFFFF]">
+                      {(selectedOrderDetails.productPriceDzd || selectedOrderDetails.totalDzd).toLocaleString()} DZD
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Financial Summary */}
+            <div className="p-4 bg-[#0A0A0C] border border-[#22242B] rounded-xl space-y-2 my-5">
+              <div className="flex justify-between text-xs text-[#A1A1AA]">
+                <span>Sous-total articles :</span>
+                <span className="font-mono text-[#FFFFFF]">
+                  {(
+                    selectedOrderDetails.productPriceDzd ||
+                    selectedOrderDetails.totalDzd - (selectedOrderDetails.shippingCostDzd || 0)
+                  ).toLocaleString()}{" "}
+                  DZD
+                </span>
+              </div>
+              <div className="flex justify-between text-xs text-[#A1A1AA]">
+                <span>Livraison ({selectedOrderDetails.deliveryType}) :</span>
+                <span className="font-mono text-[#FFFFFF]">
+                  {(selectedOrderDetails.shippingCostDzd || 0).toLocaleString()} DZD
+                </span>
+              </div>
+              <div className="pt-2 border-t border-[#22242B] flex justify-between items-center">
+                <div>
+                  <span className="font-heading font-black text-sm uppercase tracking-wide text-[#FFFFFF] block">
+                    Total Net COD (Cash à la livraison)
+                  </span>
+                  <span className="text-[10px] text-[#10B981] font-sans font-medium">
+                    Autorisation d'inspection avant paiement
+                  </span>
+                </div>
+                <span className="font-mono font-black text-2xl text-[#C5A880]">
+                  {selectedOrderDetails.totalDzd.toLocaleString()} DZD
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Status Buttons & Actions */}
+            <div className="pt-4 border-t border-[#22242B] space-y-3">
+              <div>
+                <span className="text-[11px] font-heading font-bold uppercase tracking-wider text-[#71717A] block mb-2">
+                  Changer rapidement l'état :
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "nouveau")}
+                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
+                      selectedOrderDetails.status === "nouveau"
+                        ? "bg-[#F59E0B] text-[#000000] border-[#F59E0B]"
+                        : "bg-[#18191E] text-[#F59E0B] border-[#F59E0B]/30 hover:bg-[#F59E0B]/10"
+                    }`}
+                  >
+                    Nouveau
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "confirme")}
+                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
+                      selectedOrderDetails.status === "confirme"
+                        ? "bg-[#3B82F6] text-[#FFFFFF] border-[#3B82F6]"
+                        : "bg-[#18191E] text-[#60A5FA] border-[#3B82F6]/30 hover:bg-[#3B82F6]/10"
+                    }`}
+                  >
+                    Confirmé
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "expedie")}
+                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
+                      selectedOrderDetails.status === "expedie"
+                        ? "bg-[#8B5CF6] text-[#FFFFFF] border-[#8B5CF6]"
+                        : "bg-[#18191E] text-[#A78BFA] border-[#8B5CF6]/30 hover:bg-[#8B5CF6]/10"
+                    }`}
+                  >
+                    Expédié
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "livre")}
+                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
+                      selectedOrderDetails.status === "livre"
+                        ? "bg-[#10B981] text-[#000000] border-[#10B981]"
+                        : "bg-[#18191E] text-[#10B981] border-[#10B981]/30 hover:bg-[#10B981]/10"
+                    }`}
+                  >
+                    Livré
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "retour")}
+                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
+                      selectedOrderDetails.status === "retour"
+                        ? "bg-[#F43F5E] text-[#FFFFFF] border-[#F43F5E]"
+                        : "bg-[#18191E] text-[#F43F5E] border-[#F43F5E]/30 hover:bg-[#F43F5E]/10"
+                    }`}
+                  >
+                    Retour
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateOrderStatus(selectedOrderDetails.id, "annule")}
+                    className={`h-8 px-2 rounded text-[11px] font-heading font-bold uppercase tracking-wider border transition-colors cursor-pointer ${
+                      selectedOrderDetails.status === "annule"
+                        ? "bg-[#EF4444] text-[#FFFFFF] border-[#EF4444]"
+                        : "bg-[#18191E] text-[#EF4444] border-[#EF4444]/30 hover:bg-[#EF4444]/10"
+                    }`}
+                  >
+                    Annulé
+                  </button>
+                </div>
+              </div>
+
+              {/* Bottom Buttons */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#22242B]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderDetails(null)}
+                  className="h-10 px-4 rounded-lg bg-[#1F2128] hover:bg-[#27272A] font-heading font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Fermer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedOrderForInvoice(selectedOrderDetails);
+                  }}
+                  className="h-10 px-5 rounded-lg bg-[#C5A880] hover:bg-[#D4AF37] text-[#0A0A0C] font-heading font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Imprimer Bordereau Yalidine</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
